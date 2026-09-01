@@ -1,0 +1,33 @@
+# Build directories
+build/
+build-*/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+Makefile
+
+# IDE
+.vscode/
+.idea/
+
+# Visual Studio
+.vs/
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+
+# Debug files
+*.pdb
+
+# OS
+.DS_Store
+Thumbs.db
