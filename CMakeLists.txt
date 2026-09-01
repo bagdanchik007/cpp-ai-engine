@@ -18,6 +18,7 @@ target_sources(cppai
         src/tensor/tensor_shape.cpp
         src/tensor/tensor_storage.cpp
         src/tensor/tensor.cpp
+        src/tensor/tensor_operations.cpp
 )
 
 target_include_directories(cppai
