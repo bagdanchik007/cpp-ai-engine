@@ -1,12 +1,42 @@
 #include <cppai/cli/project_scanner.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <unordered_map>
 
 namespace cppai::cli
 {
 
     namespace fs = std::filesystem;
+
+    namespace
+    {
+
+        std::string to_lower(const std::string &text)
+        {
+            std::string result = text;
+
+            std::transform(
+                result.begin(), result.end(), result.begin(),
+                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+            return result;
+        }
+
+        bool path_contains_tests_directory(const std::string &path)
+        {
+            return path.find("/tests/") != std::string::npos ||
+                path.find("\\tests\\") != std::string::npos;
+        }
+
+        std::string file_stem(const std::string &path)
+        {
+            return fs::path(path).stem().string();
+        }
+
+    } // namespace
 
     bool ProjectScanner::is_source_file(const std::string &path)
     {
@@ -33,6 +63,9 @@ namespace cppai::cli
         {
             return report;
         }
+
+        std::unordered_map<std::string, std::uint64_t> line_occurrences;
+        constexpr std::size_t minimum_line_length = 20;
 
         for (const auto &entry : fs::recursive_directory_iterator(root_path))
         {
@@ -68,10 +101,61 @@ namespace cppai::cli
                 {
                     ++stats.todo_count;
                 }
+
+                std::string trimmed = line;
+                trimmed.erase(0, trimmed.find_first_not_of(" \t\r"));
+
+                if (trimmed.size() >= minimum_line_length)
+                {
+                    ++line_occurrences[trimmed];
+                }
             }
 
             report.total_line_count += stats.line_count;
             report.files.push_back(std::move(stats));
+        }
+
+        for (const auto &[line, count] : line_occurrences)
+        {
+            if (count > 1)
+            {
+                report.duplicate_lines.emplace_back(line, count);
+            }
+        }
+
+        // Second pass: for every non-test source file, check whether
+        // any other scanned file looks like a test for it (same file
+        // stem, living under a "tests" directory or named *_test(s)).
+        for (auto &file : report.files)
+        {
+            if (path_contains_tests_directory(file.path))
+            {
+                continue;
+            }
+
+            const std::string stem = to_lower(file_stem(file.path));
+            bool found_test = false;
+
+            for (const auto &other : report.files)
+            {
+                if (&other == &file)
+                {
+                    continue;
+                }
+
+                const std::string other_stem = to_lower(file_stem(other.path));
+                const bool looks_like_test =
+                    path_contains_tests_directory(other.path) ||
+                    other_stem.find("test") != std::string::npos;
+
+                if (looks_like_test && other_stem.find(stem) != std::string::npos)
+                {
+                    found_test = true;
+                    break;
+                }
+            }
+
+            file.has_matching_test = found_test;
         }
 
         return report;
@@ -101,6 +185,14 @@ namespace cppai::cli
                     "Found " + std::to_string(file.todo_count) +
                         " TODO marker(s); resolve or turn them into tracked issues."});
             }
+
+            if (!file.has_matching_test)
+            {
+                decisions.push_back(Decision{
+                    file.path,
+                    "No matching test file was found for this source file; "
+                    "consider adding test coverage."});
+            }
         }
 
         if (report.files.empty())
@@ -108,6 +200,15 @@ namespace cppai::cli
             decisions.push_back(Decision{
                 "",
                 "No source files were found under the given path."});
+        }
+
+        for (const auto &[line, count] : report.duplicate_lines)
+        {
+            decisions.push_back(Decision{
+                "",
+                "A line appears " + std::to_string(count) +
+                    " times across the project; consider extracting it: \"" +
+                    line + "\""});
         }
 
         return decisions;
