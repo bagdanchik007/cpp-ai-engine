@@ -73,8 +73,17 @@ Test executables are split by module: `tensor_tests`,
 ./build/cppai_console analyze .  # one-shot: scan a project and print suggestions
 ```
 
-Available REPL commands: `help`, `analyze <path>`, `chat <text>`,
-`exit`.
+Available REPL commands: `help`, `analyze <path>`, `train <file>
+[steps]`, `chat <text>`, `exit`.
+
+`train` builds a fresh vocabulary from a text file and trains the
+built-in `LanguageModel` with SGD for the given number of steps
+(200 by default). `chat` then feeds your text into the last trained
+model and greedily generates a short continuation. This is a real,
+working (if small and easily overfit) training loop — not a
+simulation — but it is not a large language model: expect
+repetitive output on tiny corpora, and train on more text for more
+varied results.
 
 ## Current state and roadmap
 
@@ -86,14 +95,16 @@ step toward the project's goal of an assistant that helps make real
 code decisions, not just answer questions.
 
 `models::LanguageModel` and the autograd/optimizer stack are real and
-trainable (see the tests for a working gradient-descent example), but
-the model itself is a small baseline (embedding + one hidden layer),
-not a large language model. Planned next steps:
+trainable via the `train` REPL command (mean-pooled embedding context
+→ hidden layer → output projection, trained with SGD on a squared-error
+objective). It is a small baseline, not a large language model.
+Planned next steps:
 
 - Replace the mean-pooled context representation with an actual
   sequence model (e.g. a small RNN or attention block).
-- Grow `ProjectScanner`'s heuristics (duplicate-code detection,
-  missing test coverage, dependency analysis).
-- Connect `LanguageModel` predictions to `Repl::handle_chat` once the
-  model is large and well-trained enough to be useful.
-- Add model checkpoint save/load.
+- Add a proper cross-entropy loss (currently squared error on a
+  one-hot target, for simplicity).
+- Grow `ProjectScanner`'s heuristics further (duplicate-code detection
+  beyond exact-line matches, dependency analysis).
+- Add model checkpoint auto-save/load to the `train`/`chat` commands
+  (the `LanguageModel::save`/`load` API already exists).
