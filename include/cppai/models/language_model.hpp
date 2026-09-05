@@ -6,6 +6,7 @@
 #include <cppai/tokenizer/vocabulary.hpp>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace cppai::models
@@ -42,6 +43,16 @@ namespace cppai::models
 
         [[nodiscard]]
         std::vector<nn::Parameter *> parameters() override;
+
+        // Saves all parameters to a file so training progress can be
+        // resumed later. Format: one write_tensor() block per
+        // parameter, in parameters() order.
+        void save(const std::string &path) const;
+
+        // Loads parameters previously written by save(). The model's
+        // architecture (vocabulary size, embedding_dim, hidden_dim)
+        // must already match; this only restores weight values.
+        void load(const std::string &path);
 
     private:
         nn::Embedding embedding_;
