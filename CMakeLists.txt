@@ -19,6 +19,21 @@ target_sources(cppai
         src/tensor/tensor_storage.cpp
         src/tensor/tensor.cpp
         src/tensor/tensor_operations.cpp
+        src/autograd/operation.cpp
+        src/autograd/computation_graph.cpp
+        src/autograd/variable.cpp
+        src/autograd/backward.cpp
+        src/nn/parameter.cpp
+        src/nn/module.cpp
+        src/nn/sequential.cpp
+        src/nn/layers/linear.cpp
+        src/nn/layers/embedding.cpp
+        src/nn/activations/relu.cpp
+        src/nn/activations/sigmoid.cpp
+        src/nn/activations/softmax.cpp
+        src/optim/optimizer.cpp
+        src/optim/sgd.cpp
+        src/optim/adam.cpp
 )
 
 target_include_directories(cppai
