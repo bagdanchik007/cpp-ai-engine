@@ -123,3 +123,24 @@ TEST(TensorOperationsTest, Divide)
     EXPECT_EQ(result[2], 3.0);
     EXPECT_EQ(result[3], 4.0);
 }
+
+#include <cppai/tensor/tensor_io.hpp>
+
+#include <sstream>
+
+TEST(TensorIOTest, RoundTrip)
+{
+    cppai::Tensor original({2, 2}, {1.5, 2.5, 3.5, 4.5});
+
+    std::stringstream stream;
+    cppai::write_tensor(stream, original);
+
+    cppai::Tensor restored = cppai::read_tensor(stream);
+
+    ASSERT_EQ(restored.size(), original.size());
+
+    for (cppai::size_type i = 0; i < original.size(); ++i)
+    {
+        EXPECT_DOUBLE_EQ(restored[i], original[i]);
+    }
+}
