@@ -68,6 +68,16 @@ target_link_libraries(core_tests
         GTest::gtest_main
 )
 
+add_executable(cli_tests
+    cli/project_scanner_tests.cpp
+)
+
+target_link_libraries(cli_tests
+    PRIVATE
+        cppai
+        GTest::gtest_main
+)
+
 include(GoogleTest)
 
 gtest_discover_tests(tensor_tests)
@@ -76,3 +86,4 @@ gtest_discover_tests(nn_tests)
 gtest_discover_tests(optim_tests)
 gtest_discover_tests(tokenizer_tests)
 gtest_discover_tests(core_tests)
+gtest_discover_tests(cli_tests)
