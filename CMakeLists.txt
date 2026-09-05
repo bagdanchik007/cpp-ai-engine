@@ -19,6 +19,7 @@ target_sources(cppai
         src/tensor/tensor_storage.cpp
         src/tensor/tensor.cpp
         src/tensor/tensor_operations.cpp
+        src/tensor/tensor_io.cpp
         src/autograd/operation.cpp
         src/autograd/computation_graph.cpp
         src/autograd/variable.cpp
