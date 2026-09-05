@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cppai::cli
@@ -12,12 +13,19 @@ namespace cppai::cli
         std::string path;
         std::uint64_t line_count = 0;
         std::uint64_t todo_count = 0;
+        bool has_matching_test = true;
     };
 
     struct ProjectReport
     {
         std::vector<FileStats> files;
         std::uint64_t total_line_count = 0;
+
+        // Non-trivial lines (longer than a small threshold, to avoid
+        // flagging braces and blank lines) that appear verbatim more
+        // than once across the scanned files, paired with how many
+        // times each was seen.
+        std::vector<std::pair<std::string, std::uint64_t>> duplicate_lines;
     };
 
     // A single actionable observation about the scanned project, e.g.
