@@ -42,4 +42,24 @@ namespace cppai
     Tensor transpose(
         const Tensor &tensor);
 
+    // Broadcasting helpers
+
+    Tensor add_row_bias(
+        const Tensor &matrix,
+        const Tensor &bias);
+
+    Tensor sum_rows(
+        const Tensor &matrix);
+
+    // Utility
+
+    Tensor ones_like(
+        const Tensor &tensor);
+
+    Tensor zeros_like(
+        const Tensor &tensor);
+
+    float64 sum(
+        const Tensor &tensor);
+
 } // namespace cppai
