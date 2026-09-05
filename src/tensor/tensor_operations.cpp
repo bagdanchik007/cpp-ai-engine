@@ -194,4 +194,90 @@ namespace cppai
         return result;
     }
 
+    // Broadcasting helpers
+
+    Tensor add_row_bias(
+        const Tensor &matrix,
+        const Tensor &bias)
+    {
+        if (matrix.rank() != 2 || bias.rank() != 1)
+        {
+            throw ShapeError(
+                "add_row_bias requires a rank-2 matrix and a rank-1 bias");
+        }
+
+        const size_type rows = matrix.shape()[0];
+        const size_type cols = matrix.shape()[1];
+
+        if (bias.shape()[0] != cols)
+        {
+            throw ShapeError(
+                "Bias size must match the number of matrix columns");
+        }
+
+        Tensor result(matrix.shape());
+
+        for (size_type i = 0; i < rows; ++i)
+        {
+            for (size_type j = 0; j < cols; ++j)
+            {
+                result[i * cols + j] = matrix[i * cols + j] + bias[j];
+            }
+        }
+
+        return result;
+    }
+
+    Tensor sum_rows(
+        const Tensor &matrix)
+    {
+        if (matrix.rank() != 2)
+        {
+            throw ShapeError(
+                "sum_rows requires a rank-2 tensor");
+        }
+
+        const size_type rows = matrix.shape()[0];
+        const size_type cols = matrix.shape()[1];
+
+        Tensor result(TensorShape{cols});
+
+        for (size_type i = 0; i < rows; ++i)
+        {
+            for (size_type j = 0; j < cols; ++j)
+            {
+                result[j] += matrix[i * cols + j];
+            }
+        }
+
+        return result;
+    }
+
+    // Utility
+
+    Tensor ones_like(
+        const Tensor &tensor)
+    {
+        return Tensor::ones(tensor.shape());
+    }
+
+    Tensor zeros_like(
+        const Tensor &tensor)
+    {
+        return Tensor::zeros(tensor.shape());
+    }
+
+    float64 sum(
+        const Tensor &tensor)
+    {
+        float64 total = 0.0;
+
+        for (size_type i = 0; i < tensor.size(); ++i)
+        {
+            total += tensor[i];
+        }
+
+        return total;
+    }
+
 } // namespace cppai
