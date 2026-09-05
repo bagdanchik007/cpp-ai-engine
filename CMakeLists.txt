@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     cppai
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "A C++ AI and machine learning library"
     LANGUAGES CXX
 )
@@ -34,6 +34,15 @@ target_sources(cppai
         src/optim/optimizer.cpp
         src/optim/sgd.cpp
         src/optim/adam.cpp
+        src/tokenizer/vocabulary.cpp
+        src/tokenizer/tokenizer.cpp
+        src/data/dataset.cpp
+        src/data/dataloader.cpp
+        src/models/model.cpp
+        src/models/language_model.cpp
+        src/cli/argument_parser.cpp
+        src/cli/project_scanner.cpp
+        src/cli/repl.cpp
 )
 
 target_include_directories(cppai
