@@ -14,6 +14,12 @@ namespace cppai::cli
         std::uint64_t line_count = 0;
         std::uint64_t todo_count = 0;
         bool has_matching_test = true;
+
+        // Names of functions in this file whose body exceeds
+        // ProjectScanner's long-function threshold, paired with their
+        // line count. Populated by a brace-depth heuristic, not a real
+        // parser, so it is approximate.
+        std::vector<std::pair<std::string, std::uint64_t>> long_functions;
     };
 
     struct ProjectReport
