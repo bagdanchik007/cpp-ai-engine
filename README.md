@@ -108,3 +108,83 @@ Planned next steps:
   beyond exact-line matches, dependency analysis).
 - Add model checkpoint auto-save/load to the `train`/`chat` commands
   (the `LanguageModel::save`/`load` API already exists).
+
+## API surface awaiting implementation
+
+The following headers declare an API with **no implementation yet** —
+they exist as a starting point (`.cpp` files intentionally not
+created, or new method declarations added to existing classes without
+bodies). Compiling the library is unaffected as long as nothing calls
+them yet:
+
+- `autograd::Variable::exp()`, `::log()`, `::tanh()` — elementwise ops
+  (`OpType::Exp`/`Log`/`Tanh` also need a case in
+  `autograd::to_string`).
+- `nn::Loss`, `nn::MSELoss`, `nn::CrossEntropyLoss` — reusable loss
+  functions to replace the loss math currently inlined in
+  `Repl::handle_train`.
+- `nn::RNNCell` — a single Elman RNN cell (needs `Variable::tanh()`).
+- `models::SequenceLanguageModel` — a `LanguageModel` variant built on
+  `RNNCell` instead of mean-pooled context.
+- `models::Trainer` — extracts the training loop out of
+  `Repl::handle_train` into a reusable, independently testable class.
+- `cli::ComplexityAnalyzer::find_long_functions()` and the
+  `FileStats::long_functions` field it is meant to populate, wired
+  into `ProjectScanner::scan()` and `make_decisions()`.
+
+### Second batch: transformers, training utilities, and code-editing
+
+- `nn::Dropout`, `nn::LayerNorm`, `nn::SelfAttention`,
+  `nn::positional_encoding()`, `nn::GELU`, `nn::FeedForward` —
+  transformer building blocks.
+- `models::TinyTransformer` — a single-block transformer language
+  model composed from the above, the natural next step after
+  `SequenceLanguageModel`.
+- `optim::LRScheduler`, `optim::StepLR`, `optim::CosineAnnealingLR` —
+  learning-rate schedules.
+- `optim::RMSProp` — a third optimizer alongside SGD/Adam.
+- `optim::clip_grad_norm()` — gradient clipping.
+- `data::TextDataset` — sliding-window next-token dataset over token
+  ids, avoiding materializing one-hot tensors up front.
+- `data::CorpusLoader` — reads a directory of text files into a
+  training corpus.
+- `tokenizer::BPETokenizer` — subword tokenization via learned merges.
+- `tokenizer::SpecialTokens` — `<bos>`/`<eos>`/`<pad>` token ids.
+- `models::ModelConfig` — checkpoint architecture metadata, to pair
+  with the existing weights-only `save()`/`load()`.
+- `models::sample_with_temperature()`, `models::sample_top_k()` —
+  alternatives to `predict_next()`'s greedy argmax.
+- `models::perplexity()`, `models::EarlyStopping`,
+  `models::CheckpointManager` — training/evaluation utilities.
+- `cli::DiffApplier` — applies a proposed find/replace `CodeEdit` to a
+  file; the execution half of "make code decisions", where
+  `ProjectScanner`/`make_decisions()` are the analysis half.
+- `cli::GitInspector` — wraps `git status`/`diff` so suggestions can
+  be grounded in what actually changed.
+- `cli::TestRunner` — builds and runs the project's own test suite and
+  parses the results.
+- `cli::SuggestionRanker` — assigns severity and priority to
+  `Decision`s instead of an unordered dump.
+- `cli::CodeFormatter` — wraps an external formatter (e.g.
+  clang-format) for edits `DiffApplier` produces.
+- `cli::DependencyGraph` — builds a `#include` graph to spot cycles
+  and unused files.
+- `cli::DecisionEngine` — facade tying `ProjectScanner`,
+  `SuggestionRanker`, `DiffApplier`, and `GitInspector` into the full
+  "scan → decide → (optionally) act" loop.
+
+As before, none of the `.cpp` files for this batch exist yet, and
+`float64`/`size_type` includes have already been fixed where the
+compiler caught them missing — the headers here are confirmed to
+compile with `-fsyntax-only` and to coexist with the rest of the
+library without breaking the existing build.
+
+Suggested implementation order for this batch: `LRScheduler`/`StepLR`
+and `RMSProp`/`clip_grad_norm` first (no dependencies on anything
+else new); `Dropout`/`LayerNorm`/`GELU`/`FeedForward` next (also
+independent); then `SelfAttention` + `positional_encoding`, which
+together unblock `TinyTransformer`; `BPETokenizer`/`SpecialTokens`/
+`TextDataset`/`CorpusLoader` can happen in parallel any time; and the
+`cli::` classes are all independent of the `nn::`/`models::` work, so
+they're a good place to start if training internals feel like a lot
+to take on first.
