@@ -16,7 +16,10 @@ namespace cppai::autograd
         AddBias,
         ReLU,
         Sigmoid,
+        Tanh,
         Sum,
+        Exp,
+        Log,
     };
 
     [[nodiscard]]
