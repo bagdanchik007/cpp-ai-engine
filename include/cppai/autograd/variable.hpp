@@ -69,8 +69,21 @@ namespace cppai::autograd
         [[nodiscard]]
         Variable sigmoid() const;
 
+        // Not yet implemented; needed by RNNCell.
+        [[nodiscard]]
+        Variable tanh() const;
+
         [[nodiscard]]
         Variable sum() const;
+
+        // Elementwise exp/log. Declared here as API surface for
+        // implementing softmax/cross-entropy style losses on top of
+        // the autograd graph; not yet implemented in variable.cpp.
+        [[nodiscard]]
+        Variable exp() const;
+
+        [[nodiscard]]
+        Variable log() const;
 
         [[nodiscard]]
         const std::shared_ptr<Node> &node() const noexcept;
