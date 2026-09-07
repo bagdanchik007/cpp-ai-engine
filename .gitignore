@@ -31,4 +31,3 @@ Makefile
 # OS
 .DS_Store
 Thumbs.db
-include/cppai/autograd/oracleJdk-26/lib/modules
