@@ -17,6 +17,7 @@ namespace cppai::autograd
         ReLU,
         Sigmoid,
         Tanh,
+        Softmax,
         Sum,
         Exp,
         Log,
