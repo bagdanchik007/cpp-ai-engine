@@ -188,3 +188,49 @@ together unblock `TinyTransformer`; `BPETokenizer`/`SpecialTokens`/
 `cli::` classes are all independent of the `nn::`/`models::` work, so
 they're a good place to start if training internals feel like a lot
 to take on first.
+
+### Third batch: remaining tensor ops, losses, and repository tooling
+
+- `reshape()`, `concat()`, `slice_rows()`, `argmax()`, `argmin()` — the
+  tensor-level operations that were still missing from
+  `tensor_operations.hpp`.
+- `Variable::softmax()` — a differentiable softmax on the autograd
+  graph, unlike `nn::softmax()` which only operates on plain Tensors;
+  needed by `NLLLoss`.
+- `nn::NLLLoss`, `nn::HuberLoss`, `nn::KLDivergenceLoss` — more loss
+  functions alongside `MSELoss`/`CrossEntropyLoss`.
+- `nn::BatchNorm` — batch-dimension normalization, complementing
+  `LayerNorm`.
+- `optim::AdamW`, `optim::OptimizerState` — decoupled weight decay,
+  and persisting optimizer momentum across training sessions.
+- `models::BeamSearchDecoder`, `models::EnsembleModel`,
+  `models::GenerationConfig` — better decoding than greedy
+  `predict_next()`, and a place to configure it.
+- `models::EmbeddingExporter`, `models::ModelFactory` — export trained
+  embeddings for external visualization; build a model straight from
+  a `ModelConfig`.
+- `data::VocabularyPruner`, `data::StreamingTextDataset`,
+  `data::Collator` — frequency-based vocabulary limits, corpora too
+  large to hold in memory, and batch padding.
+- `tokenizer::WordPieceTokenizer` — greedy longest-match subword
+  tokenization, alongside `BPETokenizer`'s learned-merge approach.
+- `core::Logger`, `core::ConfigFile` — leveled logging and a
+  `key = value` settings file, instead of hardcoded hyperparameters.
+- `cli::CommitMessageGenerator`, `cli::CodeSearchIndex`,
+  `cli::RefactorSuggester`, `cli::FileWatcher`,
+  `cli::InteractiveDiffReviewer`, `cli::BuildSystemDetector`,
+  `cli::MetricsDashboard`, `cli::LicenseHeaderChecker`,
+  `cli::SecurityScanner`, `cli::TodoTracker` — repository tooling
+  rounding out the `DecisionEngine` loop: drafting commit messages,
+  searching code, prioritizing refactors, watching for changes,
+  reviewing edits before they're applied, detecting the build system,
+  visualizing training loss as an ASCII chart, and basic hygiene/
+  security checks.
+
+As with the previous batches, these are declarations only — every
+missing `<cppai/core/types.hpp>` or `<cstdint>` include the compiler
+flagged has already been fixed, and `-fsyntax-only` plus a full
+library rebuild (`-Wall -Wextra`) both pass with only the expected
+`-Wswitch` warnings for `Variable::exp`/`log`/`tanh`/`softmax`, whose
+`OpType` cases in `autograd::to_string` are part of what's left to
+implement.
