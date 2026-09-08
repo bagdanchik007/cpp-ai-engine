@@ -1,6 +1,7 @@
 # Build directories
 build/
 build-*/
+include/cppai/autograd/oracleJdk-26/
 
 # CMake
 CMakeCache.txt
