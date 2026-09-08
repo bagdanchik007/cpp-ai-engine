@@ -73,6 +73,13 @@ namespace cppai::autograd
         [[nodiscard]]
         Variable tanh() const;
 
+        // Differentiable softmax over a [1, num_classes] row Variable,
+        // unlike nn::softmax() which operates on a plain Tensor
+        // outside the autograd graph. Needed to make
+        // CrossEntropyLoss/NLLLoss differentiable end to end.
+        [[nodiscard]]
+        Variable softmax() const;
+
         [[nodiscard]]
         Variable sum() const;
 
