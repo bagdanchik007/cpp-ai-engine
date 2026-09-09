@@ -98,18 +98,51 @@ code decisions, not just answer questions.
 trainable via the `train` REPL command (mean-pooled embedding context
 → hidden layer → output projection, trained with SGD on a squared-error
 objective). It is a small baseline, not a large language model.
-Planned next steps:
+`models::SequenceLanguageModel` now also exists as a genuine
+alternative built on a recurrent `nn::RNNCell` instead of mean
+pooling — trained end to end with `optim::SGD` in its own tests, loss
+verified to decrease and the correct next token predicted on a toy
+example. Remaining next steps:
 
-- Replace the mean-pooled context representation with an actual
-  sequence model (e.g. a small RNN or attention block).
-- Add a proper cross-entropy loss (currently squared error on a
-  one-hot target, for simplicity).
+- Wire `SequenceLanguageModel` (or `TinyTransformer`, once
+  implemented) into `Repl::handle_train`/`handle_chat` in place of
+  the current `LanguageModel`.
 - Grow `ProjectScanner`'s heuristics further (duplicate-code detection
-  beyond exact-line matches, dependency analysis).
+  beyond exact-line matches, dependency analysis via
+  `DependencyGraph`).
 - Add model checkpoint auto-save/load to the `train`/`chat` commands
   (the `LanguageModel::save`/`load` API already exists).
 
-## API surface awaiting implementation
+## Implementation status
+
+Most of the API declared across the batches below is now implemented
+and tested — `autograd::Variable::exp/log/tanh/softmax`; all five
+`nn::` loss functions (`MSELoss`, `CrossEntropyLoss`, `NLLLoss`,
+`HuberLoss`, `KLDivergenceLoss`); `nn::Dropout`, `nn::LayerNorm`
+(manually derived per-row backward, verified to standardize each row
+to mean 0/variance 1), `nn::GELU`, `nn::FeedForward`; `nn::RNNCell`
+and `models::SequenceLanguageModel`; the tensor-level `reshape`,
+`concat`, `slice_rows`, `argmax`, `argmin`; and the optimizer suite
+`optim::AdamW`, `optim::RMSProp`, `optim::LRScheduler`/`StepLR`/
+`CosineAnnealingLR`, and `optim::clip_grad_norm`. All of it compiles
+warning-free with `-Wall -Wextra` and is covered by the test suite
+(63 tests passing across 9 executables as of this writing).
+
+Still declared but **not yet implemented** (no matching `.cpp`):
+
+- `models::Trainer` — extracting the training loop out of
+  `Repl::handle_train` into a reusable, independently testable class.
+- `cli::ComplexityAnalyzer::find_long_functions()` and the
+  `FileStats::long_functions` field it is meant to populate.
+- `nn::SelfAttention`, `nn::positional_encoding()`,
+  `nn::BatchNorm`, and `models::TinyTransformer`, which depends on
+  the first two.
+- `optim::OptimizerState` (persisting momentum/moment tensors).
+- Everything listed under "Second batch" and "Third batch" below
+  except the pieces called out above as now implemented — see each
+  batch's list for the full original scope; `data::`, `tokenizer::`,
+  and most `cli::` classes (`DiffApplier`, `GitInspector`,
+  `TestRunner`, `DecisionEngine`, etc.) are still headers only.
 
 The following headers declare an API with **no implementation yet** —
 they exist as a starting point (`.cpp` files intentionally not
