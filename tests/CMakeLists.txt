@@ -78,6 +78,26 @@ target_link_libraries(cli_tests
         GTest::gtest_main
 )
 
+add_executable(losses_tests
+    nn/losses/losses_tests.cpp
+)
+
+target_link_libraries(losses_tests
+    PRIVATE
+        cppai
+        GTest::gtest_main
+)
+
+add_executable(models_tests
+    models/sequence_language_model_tests.cpp
+)
+
+target_link_libraries(models_tests
+    PRIVATE
+        cppai
+        GTest::gtest_main
+)
+
 include(GoogleTest)
 
 gtest_discover_tests(tensor_tests)
@@ -87,3 +107,5 @@ gtest_discover_tests(optim_tests)
 gtest_discover_tests(tokenizer_tests)
 gtest_discover_tests(core_tests)
 gtest_discover_tests(cli_tests)
+gtest_discover_tests(losses_tests)
+gtest_discover_tests(models_tests)
