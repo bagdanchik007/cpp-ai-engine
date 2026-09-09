@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cppai/nn/layers/linear.hpp>
 #include <cppai/nn/module.hpp>
 
 namespace cppai::nn
@@ -12,6 +13,9 @@ namespace cppai::nn
     // input and the previous hidden state and returns the new hidden
     // state; callers (e.g. a sequence model) are responsible for
     // looping over timesteps and carrying the hidden state forward.
+    // Implemented on top of two Linear layers (rather than raw
+    // Parameters) so it reuses Linear's already-tested matmul + bias
+    // + autograd wiring instead of duplicating it.
     class RNNCell : public Module
     {
     public:
@@ -48,10 +52,8 @@ namespace cppai::nn
     private:
         size_type input_size_;
         size_type hidden_size_;
-        Parameter input_weight_;
-        Parameter input_bias_;
-        Parameter hidden_weight_;
-        Parameter hidden_bias_;
+        Linear input_to_hidden_;
+        Linear hidden_to_hidden_;
     };
 
 } // namespace cppai::nn
