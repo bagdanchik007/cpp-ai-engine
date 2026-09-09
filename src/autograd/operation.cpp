@@ -25,8 +25,16 @@ namespace cppai::autograd
             return "ReLU";
         case OpType::Sigmoid:
             return "Sigmoid";
+        case OpType::Tanh:
+            return "Tanh";
+        case OpType::Softmax:
+            return "Softmax";
         case OpType::Sum:
             return "Sum";
+        case OpType::Exp:
+            return "Exp";
+        case OpType::Log:
+            return "Log";
         }
 
         return "Unknown";
