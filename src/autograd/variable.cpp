@@ -324,4 +324,163 @@ namespace cppai::autograd
         return Variable(node);
     }
 
+    Variable Variable::exp() const
+    {
+        auto node = std::make_shared<Node>();
+
+        Tensor result(this->data().shape());
+
+        for (size_type i = 0; i < result.size(); ++i)
+        {
+            result[i] = std::exp(this->data()[i]);
+        }
+
+        node->data = result;
+        node->grad = zeros_like(node->data);
+        node->op = OpType::Exp;
+        node->requires_grad = requires_grad();
+        node->parents = {this->node_};
+
+        auto self_node = this->node_;
+        Tensor output = result;
+
+        node->backward_fn = [self_node, output](const Tensor &grad_output)
+        {
+            self_node->grad = add(self_node->grad, multiply(grad_output, output));
+        };
+
+        return Variable(node);
+    }
+
+    Variable Variable::log() const
+    {
+        auto node = std::make_shared<Node>();
+
+        Tensor result(this->data().shape());
+
+        for (size_type i = 0; i < result.size(); ++i)
+        {
+            result[i] = std::log(this->data()[i]);
+        }
+
+        node->data = std::move(result);
+        node->grad = zeros_like(node->data);
+        node->op = OpType::Log;
+        node->requires_grad = requires_grad();
+        node->parents = {this->node_};
+
+        auto self_node = this->node_;
+
+        node->backward_fn = [self_node](const Tensor &grad_output)
+        {
+            Tensor local_grad(self_node->data.shape());
+
+            for (size_type i = 0; i < local_grad.size(); ++i)
+            {
+                local_grad[i] = grad_output[i] / self_node->data[i];
+            }
+
+            self_node->grad = add(self_node->grad, local_grad);
+        };
+
+        return Variable(node);
+    }
+
+    Variable Variable::tanh() const
+    {
+        auto node = std::make_shared<Node>();
+
+        Tensor result(this->data().shape());
+
+        for (size_type i = 0; i < result.size(); ++i)
+        {
+            result[i] = std::tanh(this->data()[i]);
+        }
+
+        node->data = result;
+        node->grad = zeros_like(node->data);
+        node->op = OpType::Tanh;
+        node->requires_grad = requires_grad();
+        node->parents = {this->node_};
+
+        auto self_node = this->node_;
+        Tensor output = result;
+
+        node->backward_fn = [self_node, output](const Tensor &grad_output)
+        {
+            Tensor local_grad(output.shape());
+
+            for (size_type i = 0; i < local_grad.size(); ++i)
+            {
+                local_grad[i] = grad_output[i] * (1.0 - output[i] * output[i]);
+            }
+
+            self_node->grad = add(self_node->grad, local_grad);
+        };
+
+        return Variable(node);
+    }
+
+    Variable Variable::softmax() const
+    {
+        if (this->data().rank() != 2 || this->data().shape()[0] != 1)
+        {
+            throw ShapeError("Variable::softmax requires a [1, num_classes] shape");
+        }
+
+        const size_type n = this->data().shape()[1];
+
+        float64 max_logit = this->data()[0];
+
+        for (size_type i = 1; i < n; ++i)
+        {
+            max_logit = std::max(max_logit, this->data()[i]);
+        }
+
+        Tensor result(this->data().shape());
+        float64 sum_exp = 0.0;
+
+        for (size_type i = 0; i < n; ++i)
+        {
+            result[i] = std::exp(this->data()[i] - max_logit);
+            sum_exp += result[i];
+        }
+
+        for (size_type i = 0; i < n; ++i)
+        {
+            result[i] /= sum_exp;
+        }
+
+        auto node = std::make_shared<Node>();
+        node->data = result;
+        node->grad = zeros_like(node->data);
+        node->op = OpType::Softmax;
+        node->requires_grad = requires_grad();
+        node->parents = {this->node_};
+
+        auto self_node = this->node_;
+        Tensor probabilities = result;
+
+        node->backward_fn = [self_node, probabilities, n](const Tensor &grad_output)
+        {
+            float64 dot = 0.0;
+
+            for (size_type i = 0; i < n; ++i)
+            {
+                dot += grad_output[i] * probabilities[i];
+            }
+
+            Tensor local_grad(probabilities.shape());
+
+            for (size_type i = 0; i < n; ++i)
+            {
+                local_grad[i] = probabilities[i] * (grad_output[i] - dot);
+            }
+
+            self_node->grad = add(self_node->grad, local_grad);
+        };
+
+        return Variable(node);
+    }
+
 } // namespace cppai::autograd
