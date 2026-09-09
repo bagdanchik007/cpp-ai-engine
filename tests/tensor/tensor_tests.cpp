@@ -144,3 +144,58 @@ TEST(TensorIOTest, RoundTrip)
         EXPECT_DOUBLE_EQ(restored[i], original[i]);
     }
 }
+
+TEST(TensorOpsTest, ReshapePreservesValues)
+{
+    cppai::Tensor original({2, 3}, {1, 2, 3, 4, 5, 6});
+    cppai::Tensor reshaped = cppai::reshape(original, cppai::TensorShape{3, 2});
+
+    ASSERT_EQ(reshaped.size(), original.size());
+
+    for (cppai::size_type i = 0; i < original.size(); ++i)
+    {
+        EXPECT_DOUBLE_EQ(reshaped[i], original[i]);
+    }
+}
+
+TEST(TensorOpsTest, ConcatRank1)
+{
+    cppai::Tensor a({2}, {1, 2});
+    cppai::Tensor b({3}, {3, 4, 5});
+
+    cppai::Tensor result = cppai::concat({a, b}, 0);
+
+    ASSERT_EQ(result.size(), 5);
+    EXPECT_DOUBLE_EQ(result[0], 1);
+    EXPECT_DOUBLE_EQ(result[4], 5);
+}
+
+TEST(TensorOpsTest, ConcatRank2AlongRows)
+{
+    cppai::Tensor a({1, 2}, {1, 2});
+    cppai::Tensor b({1, 2}, {3, 4});
+
+    cppai::Tensor result = cppai::concat({a, b}, 0);
+
+    EXPECT_EQ(result.shape()[0], 2);
+    EXPECT_EQ(result.shape()[1], 2);
+    EXPECT_DOUBLE_EQ(result[2], 3);
+}
+
+TEST(TensorOpsTest, SliceRows)
+{
+    cppai::Tensor a({3, 2}, {1, 2, 3, 4, 5, 6});
+    cppai::Tensor sliced = cppai::slice_rows(a, 1, 3);
+
+    EXPECT_EQ(sliced.shape()[0], 2);
+    EXPECT_DOUBLE_EQ(sliced[0], 3);
+    EXPECT_DOUBLE_EQ(sliced[3], 6);
+}
+
+TEST(TensorOpsTest, ArgmaxAndArgmin)
+{
+    cppai::Tensor a({4}, {3.0, 1.0, 9.0, 4.0});
+
+    EXPECT_EQ(cppai::argmax(a), 2);
+    EXPECT_EQ(cppai::argmin(a), 1);
+}
