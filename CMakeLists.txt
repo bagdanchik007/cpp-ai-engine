@@ -32,15 +32,32 @@ target_sources(cppai
         src/nn/activations/relu.cpp
         src/nn/activations/sigmoid.cpp
         src/nn/activations/softmax.cpp
+        src/nn/losses/mse_loss.cpp
+        src/nn/losses/cross_entropy_loss.cpp
+        src/nn/losses/nll_loss.cpp
+        src/nn/losses/huber_loss.cpp
+        src/nn/losses/kl_divergence_loss.cpp
+        src/nn/layers/dropout.cpp
+        src/nn/layers/layer_norm.cpp
+        src/nn/layers/feed_forward.cpp
+        src/nn/layers/rnn_cell.cpp
+        src/nn/activations/gelu.cpp
         src/optim/optimizer.cpp
         src/optim/sgd.cpp
         src/optim/adam.cpp
+        src/optim/adamw.cpp
+        src/optim/rmsprop.cpp
+        src/optim/lr_scheduler.cpp
+        src/optim/step_lr.cpp
+        src/optim/cosine_annealing_lr.cpp
+        src/optim/gradient_clipping.cpp
         src/tokenizer/vocabulary.cpp
         src/tokenizer/tokenizer.cpp
         src/data/dataset.cpp
         src/data/dataloader.cpp
         src/models/model.cpp
         src/models/language_model.cpp
+        src/models/sequence_language_model.cpp
         src/cli/argument_parser.cpp
         src/cli/project_scanner.cpp
         src/cli/repl.cpp
