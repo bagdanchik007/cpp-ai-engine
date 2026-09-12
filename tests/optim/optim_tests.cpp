@@ -121,3 +121,22 @@ TEST(GradientClippingTest, LeavesSmallGradientsUnchanged)
 
     EXPECT_DOUBLE_EQ(param.grad()[0], 0.5);
 }
+
+#include <cppai/optim/optimizer_state.hpp>
+
+TEST(OptimizerStateTest, RoundTrip)
+{
+    std::vector<Tensor> state = {
+        Tensor({2}, {1.0, 2.0}),
+        Tensor({2, 2}, {1.0, 2.0, 3.0, 4.0}),
+    };
+
+    cppai::optim::OptimizerState::save("/tmp/cppai_optimizer_state_test.txt", state);
+
+    auto restored = cppai::optim::OptimizerState::load(
+        "/tmp/cppai_optimizer_state_test.txt", 2);
+
+    ASSERT_EQ(restored.size(), 2u);
+    EXPECT_DOUBLE_EQ(restored[0][0], 1.0);
+    EXPECT_DOUBLE_EQ(restored[1][3], 4.0);
+}
