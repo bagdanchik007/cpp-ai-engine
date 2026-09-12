@@ -116,33 +116,54 @@ example. Remaining next steps:
 ## Implementation status
 
 Most of the API declared across the batches below is now implemented
-and tested — `autograd::Variable::exp/log/tanh/softmax`; all five
-`nn::` loss functions (`MSELoss`, `CrossEntropyLoss`, `NLLLoss`,
-`HuberLoss`, `KLDivergenceLoss`); `nn::Dropout`, `nn::LayerNorm`
-(manually derived per-row backward, verified to standardize each row
-to mean 0/variance 1), `nn::GELU`, `nn::FeedForward`; `nn::RNNCell`
-and `models::SequenceLanguageModel`; the tensor-level `reshape`,
-`concat`, `slice_rows`, `argmax`, `argmin`; and the optimizer suite
-`optim::AdamW`, `optim::RMSProp`, `optim::LRScheduler`/`StepLR`/
-`CosineAnnealingLR`, and `optim::clip_grad_norm`. All of it compiles
-warning-free with `-Wall -Wextra` and is covered by the test suite
-(63 tests passing across 9 executables as of this writing).
+and tested — `autograd::Variable::exp/log/tanh/softmax` (softmax now
+generalized to any `[batch, num_classes]` shape, not just a single
+row); all five `nn::` loss functions (`MSELoss`, `CrossEntropyLoss`,
+`NLLLoss`, `HuberLoss`, `KLDivergenceLoss`); `nn::Dropout`,
+`nn::LayerNorm` and `nn::BatchNorm` (both with a manually derived
+backward, each verified to standardize to mean 0/variance ~1 along
+its respective axis), `nn::GELU`, `nn::FeedForward`, `nn::RNNCell`,
+`nn::SelfAttention`, `nn::positional_encoding()`; `models::Trainer`,
+`models::SequenceLanguageModel`, and `models::TinyTransformer` (a full
+single-block transformer — embedding + positional encoding →
+self-attention → residual + LayerNorm → feed-forward → residual +
+LayerNorm → output — trained end to end with `AdamW` in its own
+smoke test, loss dropping from ~9.5 to ~0.002); the tensor-level
+`reshape`, `concat`, `slice_rows`, `argmax`, `argmin`; the optimizer
+suite `optim::AdamW`, `optim::RMSProp`, `optim::LRScheduler`/`StepLR`/
+`CosineAnnealingLR`, `optim::clip_grad_norm`, and
+`optim::OptimizerState`; and the repository-tooling pieces
+`cli::ComplexityAnalyzer` (now wired into `ProjectScanner`'s
+long-function decisions), `cli::DiffApplier`, and `cli::GitInspector`
+(shells out to the real `git` CLI, tested against isolated temp
+repos). All of it compiles warning-free with `-Wall -Wextra` and is
+covered by the test suite (86 tests passing across 9 executables as
+of this writing).
 
 Still declared but **not yet implemented** (no matching `.cpp`):
 
-- `models::Trainer` — extracting the training loop out of
-  `Repl::handle_train` into a reusable, independently testable class.
-- `cli::ComplexityAnalyzer::find_long_functions()` and the
-  `FileStats::long_functions` field it is meant to populate.
-- `nn::SelfAttention`, `nn::positional_encoding()`,
-  `nn::BatchNorm`, and `models::TinyTransformer`, which depends on
-  the first two.
-- `optim::OptimizerState` (persisting momentum/moment tensors).
-- Everything listed under "Second batch" and "Third batch" below
-  except the pieces called out above as now implemented — see each
-  batch's list for the full original scope; `data::`, `tokenizer::`,
-  and most `cli::` classes (`DiffApplier`, `GitInspector`,
-  `TestRunner`, `DecisionEngine`, etc.) are still headers only.
+- `cli::TestRunner`, `cli::DecisionEngine`, `cli::SuggestionRanker`,
+  and the rest of the `cli::` repository-tooling classes
+  (`CommitMessageGenerator`, `CodeSearchIndex`, `RefactorSuggester`,
+  `FileWatcher`, `InteractiveDiffReviewer`, `BuildSystemDetector`,
+  `MetricsDashboard`, `LicenseHeaderChecker`, `SecurityScanner`,
+  `TodoTracker`, `CodeFormatter`, `DependencyGraph`).
+- Everything under `data::` (`TextDataset`, `CorpusLoader`,
+  `VocabularyPruner`, `StreamingTextDataset`, `Collator`) and
+  `tokenizer::` beyond the original whitespace `Tokenizer`
+  (`BPETokenizer`, `WordPieceTokenizer`, `SpecialTokens`).
+- `models::BeamSearchDecoder`, `models::EnsembleModel`,
+  `models::GenerationConfig`, `models::EmbeddingExporter`,
+  `models::ModelFactory`, `models::ModelConfig`,
+  `models::sample_with_temperature()`/`sample_top_k()`,
+  `models::perplexity()`, `models::EarlyStopping`,
+  `models::CheckpointManager`.
+- `core::Logger`, `core::ConfigFile`.
+
+`Repl::handle_train`/`handle_chat` also still use `LanguageModel`
+rather than the now-implemented `SequenceLanguageModel`/
+`TinyTransformer` — wiring one of those in is probably the next most
+impactful step toward more coherent generated text.
 
 The following headers declare an API with **no implementation yet** —
 they exist as a starting point (`.cpp` files intentionally not
