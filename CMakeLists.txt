@@ -41,6 +41,9 @@ target_sources(cppai
         src/nn/layers/layer_norm.cpp
         src/nn/layers/feed_forward.cpp
         src/nn/layers/rnn_cell.cpp
+        src/nn/layers/positional_encoding.cpp
+        src/nn/layers/self_attention.cpp
+        src/nn/layers/batch_norm.cpp
         src/nn/activations/gelu.cpp
         src/optim/optimizer.cpp
         src/optim/sgd.cpp
@@ -51,6 +54,7 @@ target_sources(cppai
         src/optim/step_lr.cpp
         src/optim/cosine_annealing_lr.cpp
         src/optim/gradient_clipping.cpp
+        src/optim/optimizer_state.cpp
         src/tokenizer/vocabulary.cpp
         src/tokenizer/tokenizer.cpp
         src/data/dataset.cpp
@@ -58,9 +62,14 @@ target_sources(cppai
         src/models/model.cpp
         src/models/language_model.cpp
         src/models/sequence_language_model.cpp
+        src/models/trainer.cpp
+        src/models/tiny_transformer.cpp
         src/cli/argument_parser.cpp
         src/cli/project_scanner.cpp
         src/cli/repl.cpp
+        src/cli/complexity_analyzer.cpp
+        src/cli/diff_applier.cpp
+        src/cli/git_inspector.cpp
 )
 
 target_include_directories(cppai

@@ -70,6 +70,8 @@ target_link_libraries(core_tests
 
 add_executable(cli_tests
     cli/project_scanner_tests.cpp
+    cli/diff_applier_tests.cpp
+    cli/git_inspector_tests.cpp
 )
 
 target_link_libraries(cli_tests
