@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cppai/cli/complexity_analyzer.hpp>
+
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -53,6 +55,8 @@ namespace cppai::cli
     private:
         [[nodiscard]]
         static bool is_source_file(const std::string &path);
+
+        ComplexityAnalyzer complexity_analyzer_;
     };
 
     // Applies simple heuristic rules to a ProjectReport to produce

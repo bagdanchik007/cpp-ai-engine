@@ -90,3 +90,54 @@ TEST_F(ProjectScannerTest, FindsDuplicateLines)
     ASSERT_EQ(report.duplicate_lines.size(), 1);
     EXPECT_EQ(report.duplicate_lines[0].second, 2);
 }
+
+#include <cppai/cli/complexity_analyzer.hpp>
+
+TEST(ComplexityAnalyzerTest, DetectsLongFunction)
+{
+    std::string source = "void foo()\n{\n";
+    for (int i = 0; i < 70; ++i)
+    {
+        source += "    doSomething();\n";
+    }
+    source += "}\n";
+
+    cppai::cli::ComplexityAnalyzer analyzer;
+    auto long_functions = analyzer.find_long_functions(source, 60);
+
+    ASSERT_EQ(long_functions.size(), 1);
+    EXPECT_EQ(long_functions[0].first, "foo");
+    EXPECT_GE(long_functions[0].second, 60u);
+}
+
+TEST(ComplexityAnalyzerTest, IgnoresShortFunctions)
+{
+    std::string source = "int add(int a, int b)\n{\n    return a + b;\n}\n";
+
+    cppai::cli::ComplexityAnalyzer analyzer;
+    auto long_functions = analyzer.find_long_functions(source, 60);
+
+    EXPECT_TRUE(long_functions.empty());
+}
+
+TEST(ComplexityAnalyzerTest, IgnoresControlFlowBlocks)
+{
+    std::string source = "void foo()\n{\n    if (true)\n    {\n";
+    for (int i = 0; i < 70; ++i)
+    {
+        source += "        doSomething();\n";
+    }
+    source += "    }\n}\n";
+
+    cppai::cli::ComplexityAnalyzer analyzer;
+    auto long_functions = analyzer.find_long_functions(source, 60);
+
+    // The if-block itself is long, but only the enclosing "foo"
+    // function is a top-level block, and it's still under threshold
+    // once the if-block's lines are just being counted as part of it.
+    // The key check here is that "if" itself never appears as a name.
+    for (const auto &entry : long_functions)
+    {
+        EXPECT_NE(entry.first, "if");
+    }
+}

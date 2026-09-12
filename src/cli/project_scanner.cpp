@@ -92,10 +92,13 @@ namespace cppai::cli
             stats.path = path;
 
             std::string line;
+            std::string full_text;
 
             while (std::getline(file, line))
             {
                 ++stats.line_count;
+                full_text += line;
+                full_text += '\n';
 
                 if (line.find("TODO") != std::string::npos)
                 {
@@ -110,6 +113,8 @@ namespace cppai::cli
                     ++line_occurrences[trimmed];
                 }
             }
+
+            stats.long_functions = complexity_analyzer_.find_long_functions(full_text);
 
             report.total_line_count += stats.line_count;
             report.files.push_back(std::move(stats));
@@ -192,6 +197,16 @@ namespace cppai::cli
                     file.path,
                     "No matching test file was found for this source file; "
                     "consider adding test coverage."});
+            }
+
+            for (const auto &[function_name, line_count] : file.long_functions)
+            {
+                decisions.push_back(Decision{
+                    file.path,
+                    "Function '" + function_name + "' spans " +
+                        std::to_string(line_count) +
+                        " lines; consider extracting part of it into a "
+                        "separate function."});
             }
         }
 
