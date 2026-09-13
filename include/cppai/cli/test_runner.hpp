@@ -38,6 +38,13 @@ namespace cppai::cli
         [[nodiscard]]
         TestRunResult run() const;
 
+        // Parses ctest's human-readable summary output (as produced by
+        // `ctest --output-on-failure`) into structured results.
+        // Exposed separately so the parsing logic can be unit-tested
+        // without actually invoking cmake/ctest.
+        [[nodiscard]]
+        static std::vector<TestCaseResult> parse_ctest_output(const std::string &output);
+
     private:
         std::string build_directory_;
     };
