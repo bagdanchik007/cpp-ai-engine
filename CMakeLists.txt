@@ -17,6 +17,8 @@ target_sources(cppai
     PRIVATE
         src/tensor/tensor_shape.cpp
         src/tensor/tensor_storage.cpp
+        src/core/logger.cpp
+        src/core/config_file.cpp
         src/tensor/tensor.cpp
         src/tensor/tensor_operations.cpp
         src/tensor/tensor_io.cpp
@@ -59,6 +61,8 @@ target_sources(cppai
         src/tokenizer/tokenizer.cpp
         src/data/dataset.cpp
         src/data/dataloader.cpp
+        src/data/vocabulary_pruner.cpp
+        src/data/collator.cpp
         src/models/model.cpp
         src/models/language_model.cpp
         src/models/sequence_language_model.cpp
@@ -70,6 +74,9 @@ target_sources(cppai
         src/cli/complexity_analyzer.cpp
         src/cli/diff_applier.cpp
         src/cli/git_inspector.cpp
+        src/cli/test_runner.cpp
+        src/cli/suggestion_ranker.cpp
+        src/cli/decision_engine.cpp
 )
 
 target_include_directories(cppai

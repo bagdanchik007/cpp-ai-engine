@@ -72,6 +72,9 @@ add_executable(cli_tests
     cli/project_scanner_tests.cpp
     cli/diff_applier_tests.cpp
     cli/git_inspector_tests.cpp
+    cli/test_runner_tests.cpp
+    cli/suggestion_ranker_tests.cpp
+    cli/decision_engine_tests.cpp
 )
 
 target_link_libraries(cli_tests
@@ -100,6 +103,16 @@ target_link_libraries(models_tests
         GTest::gtest_main
 )
 
+add_executable(data_tests
+    data/data_tests.cpp
+)
+
+target_link_libraries(data_tests
+    PRIVATE
+        cppai
+        GTest::gtest_main
+)
+
 include(GoogleTest)
 
 gtest_discover_tests(tensor_tests)
@@ -111,3 +124,4 @@ gtest_discover_tests(core_tests)
 gtest_discover_tests(cli_tests)
 gtest_discover_tests(losses_tests)
 gtest_discover_tests(models_tests)
+gtest_discover_tests(data_tests)
