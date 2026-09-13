@@ -132,33 +132,38 @@ smoke test, loss dropping from ~9.5 to ~0.002); the tensor-level
 `reshape`, `concat`, `slice_rows`, `argmax`, `argmin`; the optimizer
 suite `optim::AdamW`, `optim::RMSProp`, `optim::LRScheduler`/`StepLR`/
 `CosineAnnealingLR`, `optim::clip_grad_norm`, and
-`optim::OptimizerState`; and the repository-tooling pieces
-`cli::ComplexityAnalyzer` (now wired into `ProjectScanner`'s
-long-function decisions), `cli::DiffApplier`, and `cli::GitInspector`
-(shells out to the real `git` CLI, tested against isolated temp
-repos). All of it compiles warning-free with `-Wall -Wextra` and is
-covered by the test suite (86 tests passing across 9 executables as
-of this writing).
+`optim::OptimizerState`; `core::Logger` and `core::ConfigFile`;
+`data::VocabularyPruner` and `data::Collator`; and the full
+repository-tooling loop under `cli::` — `ComplexityAnalyzer` (wired
+into `ProjectScanner`'s long-function decisions), `DiffApplier`,
+`GitInspector` (shells out to the real `git` CLI, tested against
+isolated temp repos), `TestRunner` (drives `cmake`/`ctest`, with its
+ctest-output parser independently unit-tested), `SuggestionRanker`,
+and `DecisionEngine` — the facade tying all of them together into the
+"scan → rank → apply" loop, verified end to end in its own tests
+(including actually rewriting a file via `apply()`) and live against
+this repository itself (88 ranked suggestions on `src/nn`, correctly
+sorted by severity and file size). All of it compiles warning-free
+with `-Wall -Wextra` and is covered by the test suite (100 tests
+passing across 10 executables as of this writing).
 
 Still declared but **not yet implemented** (no matching `.cpp`):
 
-- `cli::TestRunner`, `cli::DecisionEngine`, `cli::SuggestionRanker`,
-  and the rest of the `cli::` repository-tooling classes
-  (`CommitMessageGenerator`, `CodeSearchIndex`, `RefactorSuggester`,
+- The remaining `cli::` repository-tooling classes:
+  `CommitMessageGenerator`, `CodeSearchIndex`, `RefactorSuggester`,
   `FileWatcher`, `InteractiveDiffReviewer`, `BuildSystemDetector`,
   `MetricsDashboard`, `LicenseHeaderChecker`, `SecurityScanner`,
-  `TodoTracker`, `CodeFormatter`, `DependencyGraph`).
-- Everything under `data::` (`TextDataset`, `CorpusLoader`,
-  `VocabularyPruner`, `StreamingTextDataset`, `Collator`) and
-  `tokenizer::` beyond the original whitespace `Tokenizer`
-  (`BPETokenizer`, `WordPieceTokenizer`, `SpecialTokens`).
+  `TodoTracker`, `CodeFormatter`, `DependencyGraph`.
+- `data::TextDataset`, `data::CorpusLoader`,
+  `data::StreamingTextDataset`, and `tokenizer::` beyond the original
+  whitespace `Tokenizer` (`BPETokenizer`, `WordPieceTokenizer`,
+  `SpecialTokens`).
 - `models::BeamSearchDecoder`, `models::EnsembleModel`,
   `models::GenerationConfig`, `models::EmbeddingExporter`,
   `models::ModelFactory`, `models::ModelConfig`,
   `models::sample_with_temperature()`/`sample_top_k()`,
   `models::perplexity()`, `models::EarlyStopping`,
   `models::CheckpointManager`.
-- `core::Logger`, `core::ConfigFile`.
 
 `Repl::handle_train`/`handle_chat` also still use `LanguageModel`
 rather than the now-implemented `SequenceLanguageModel`/
