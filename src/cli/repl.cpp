@@ -3,6 +3,7 @@
 #include <cppai/cli/project_scanner.hpp>
 #include <cppai/optim/sgd.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -40,7 +41,7 @@ namespace cppai::cli
         output_ << "Available commands:\n"
                 << "  help                   Show this message\n"
                 << "  analyze <path>         Scan a source tree and list rule-based suggestions\n"
-                << "  train <file> [steps]   Train a small LanguageModel on a text file (default 200 steps)\n"
+                << "  train <file> [steps]   Train a small recurrent (RNN) language model on a text file (default 200 steps)\n"
                 << "  chat <text>            Continue text using the last trained model, if any\n"
                 << "  exit                   Quit\n";
     }
@@ -123,13 +124,22 @@ namespace cppai::cli
         constexpr size_type embedding_dim = 16;
         constexpr size_type hidden_dim = 32;
 
-        model_ = std::make_unique<models::LanguageModel>(
+        model_ = std::make_unique<models::SequenceLanguageModel>(
             vocabulary_.size(), embedding_dim, hidden_dim);
 
         optim::SGD optimizer(model_->parameters(), 0.1);
 
         float64 first_loss = 0.0;
-        float64 last_loss = 0.0;
+
+        // Report the average loss over the tail of training rather
+        // than the single final step's loss: with this training loop
+        // cycling through different (context, target) pairs each
+        // step without shuffling, the very last step can land on an
+        // easy or hard example more or less by chance, which makes a
+        // single-step loss a noisy, potentially misleading summary.
+        const size_type window_size = std::min<size_type>(steps, 20);
+        std::vector<float64> recent_losses;
+        recent_losses.reserve(window_size);
 
         for (size_type step = 0; step < steps; ++step)
         {
@@ -160,12 +170,28 @@ namespace cppai::cli
                 first_loss = loss.data()[0];
             }
 
-            last_loss = loss.data()[0];
+            if (step >= steps - window_size)
+            {
+                recent_losses.push_back(loss.data()[0]);
+            }
+        }
+
+        float64 average_recent_loss = 0.0;
+
+        for (float64 value : recent_losses)
+        {
+            average_recent_loss += value;
+        }
+
+        if (!recent_losses.empty())
+        {
+            average_recent_loss /= static_cast<float64>(recent_losses.size());
         }
 
         output_ << "Trained on " << tokens.size() << " tokens ("
                 << vocabulary_.size() << " unique) for " << steps << " steps.\n"
-                << "Loss: " << first_loss << " -> " << last_loss << '\n';
+                << "Loss: " << first_loss << " -> " << average_recent_loss
+                << " (avg over last " << recent_losses.size() << " steps)\n";
     }
 
     void Repl::handle_chat(const std::vector<std::string> &args)

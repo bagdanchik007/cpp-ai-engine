@@ -65,3 +65,73 @@ TEST(CollatorTest, LeavesEqualLengthSequencesUnchanged)
     EXPECT_EQ(padded[0], std::vector<cppai::size_type>({1, 2}));
     EXPECT_EQ(padded[1], std::vector<cppai::size_type>({3, 4}));
 }
+
+#include <cppai/core/error.hpp>
+#include <cppai/data/corpus_loader.hpp>
+#include <cppai/data/text_dataset.hpp>
+
+#include <filesystem>
+#include <fstream>
+
+TEST(TextDatasetTest, SizeAccountsForContextWindow)
+{
+    // 5 ids with a context of 2 yields 3 (context, target) pairs.
+    cppai::data::TextDataset dataset({1, 2, 3, 4, 5}, /*vocabulary_size=*/10, /*context_size=*/2);
+
+    EXPECT_EQ(dataset.size(), 3u);
+}
+
+TEST(TextDatasetTest, ContextIdsSlideAcrossTheCorpus)
+{
+    cppai::data::TextDataset dataset({1, 2, 3, 4, 5}, 10, 2);
+
+    EXPECT_EQ(dataset.context_ids(0), std::vector<cppai::size_type>({1, 2}));
+    EXPECT_EQ(dataset.context_ids(2), std::vector<cppai::size_type>({3, 4}));
+}
+
+TEST(TextDatasetTest, TargetIsOneHotOfTheFollowingToken)
+{
+    cppai::data::TextDataset dataset({1, 2, 7}, 10, 2);
+
+    auto [context, target] = dataset.get(0);
+
+    EXPECT_EQ(target.shape()[1], 10u);
+    EXPECT_DOUBLE_EQ(target[7], 1.0);
+    EXPECT_DOUBLE_EQ(target[0], 0.0);
+}
+
+TEST(TextDatasetTest, CorpusShorterThanContextYieldsNoExamples)
+{
+    cppai::data::TextDataset dataset({1, 2}, 10, 2);
+
+    EXPECT_EQ(dataset.size(), 0u);
+    EXPECT_THROW({ (void)dataset.get(0); }, cppai::Error);
+}
+
+TEST(CorpusLoaderTest, ConcatenatesMatchingFilesDeterministically)
+{
+    auto root = std::filesystem::temp_directory_path() / "cppai_corpus_loader_test";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    { std::ofstream(root / "b.txt") << "second"; }
+    { std::ofstream(root / "a.txt") << "first"; }
+    { std::ofstream(root / "skip.bin") << "ignored"; }
+
+    cppai::data::CorpusLoader loader;
+    const std::string corpus = loader.load_directory(root.string(), {".txt"});
+
+    // Sorted by path, so "a.txt" precedes "b.txt" regardless of the
+    // order the filesystem happened to hand them over.
+    EXPECT_LT(corpus.find("first"), corpus.find("second"));
+    EXPECT_EQ(corpus.find("ignored"), std::string::npos);
+
+    std::filesystem::remove_all(root);
+}
+
+TEST(CorpusLoaderTest, MissingDirectoryYieldsEmptyCorpus)
+{
+    cppai::data::CorpusLoader loader;
+
+    EXPECT_TRUE(loader.load_directory("/definitely/not/a/real/path").empty());
+}

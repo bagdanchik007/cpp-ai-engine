@@ -144,31 +144,56 @@ and `DecisionEngine` — the facade tying all of them together into the
 (including actually rewriting a file via `apply()`) and live against
 this repository itself (88 ranked suggestions on `src/nn`, correctly
 sorted by severity and file size). All of it compiles warning-free
-with `-Wall -Wextra` and is covered by the test suite (100 tests
+with `-Wall -Wextra` and is covered by the test suite (169 tests
 passing across 10 executables as of this writing).
 
-Still declared but **not yet implemented** (no matching `.cpp`):
+**Every API declared in this repository now has an implementation.**
+The batches listed further below record how the project was built up
+(headers first, implementations after); none of them has outstanding
+`.cpp` files any more. The full set — tensors and autograd, the `nn::`
+layer/loss stack, the `optim::` optimizers and schedulers, the
+`models::` language models and training utilities, the `data::` and
+`tokenizer::` pipelines, `core::` logging and configuration, and the
+whole `cli::` repository-tooling suite — compiles warning-free with
+`-Wall -Wextra` across 90 source files and is covered by 169 tests
+passing across 10 executables as of this writing.
 
-- The remaining `cli::` repository-tooling classes:
-  `CommitMessageGenerator`, `CodeSearchIndex`, `RefactorSuggester`,
-  `FileWatcher`, `InteractiveDiffReviewer`, `BuildSystemDetector`,
-  `MetricsDashboard`, `LicenseHeaderChecker`, `SecurityScanner`,
-  `TodoTracker`, `CodeFormatter`, `DependencyGraph`.
-- `data::TextDataset`, `data::CorpusLoader`,
-  `data::StreamingTextDataset`, and `tokenizer::` beyond the original
-  whitespace `Tokenizer` (`BPETokenizer`, `WordPieceTokenizer`,
-  `SpecialTokens`).
-- `models::BeamSearchDecoder`, `models::EnsembleModel`,
-  `models::GenerationConfig`, `models::EmbeddingExporter`,
-  `models::ModelFactory`, `models::ModelConfig`,
-  `models::sample_with_temperature()`/`sample_top_k()`,
-  `models::perplexity()`, `models::EarlyStopping`,
-  `models::CheckpointManager`.
+The most recently completed pieces: `cli::TodoTracker`,
+`CodeSearchIndex`, `LicenseHeaderChecker`, `BuildSystemDetector`,
+`MetricsDashboard`, `SecurityScanner`, `CodeFormatter`,
+`DependencyGraph` (with include-cycle detection), `RefactorSuggester`,
+`FileWatcher`, `InteractiveDiffReviewer` and `CommitMessageGenerator`;
+`tokenizer::SpecialTokens`, `BPETokenizer` (learned merges) and
+`WordPieceTokenizer` (greedy longest-match); `data::TextDataset`,
+`CorpusLoader`, `StreamingTextDataset`, `VocabularyPruner` and
+`Collator`; and `models::ModelConfig`, `ModelFactory`, `perplexity()`,
+`EarlyStopping`, `sample_with_temperature()`/`sample_top_k()`,
+`CheckpointManager`, `EmbeddingExporter`, `BeamSearchDecoder` and
+`EnsembleModel`.
 
-`Repl::handle_train`/`handle_chat` also still use `LanguageModel`
-rather than the now-implemented `SequenceLanguageModel`/
-`TinyTransformer` — wiring one of those in is probably the next most
-impactful step toward more coherent generated text.
+Along the way the shared "which files count as source" logic was
+extracted into `cli::source_files.hpp` rather than being copied into
+each new project-walking tool, and `ProjectScanner`/`TodoTracker`
+were refactored onto it.
+
+`Repl::handle_train`/`handle_chat` now train and run a real
+`models::SequenceLanguageModel` (RNN, via `nn::RNNCell`) instead of
+the mean-pooled `LanguageModel` — verified against this repository's
+own `cppai_console` binary (training on a small four-sentence corpus
+and generating a continuation for `chat the quick`), and covered by
+`tests/cli/repl_tests.cpp`, which exercises `help`, `analyze`,
+`chat` before any training, and the full `train` → `chat` sequence
+end to end. `models::LanguageModel` itself is unchanged and still
+available (and still used by `models::Trainer`'s own test) — it's
+simply no longer what the CLI uses by default. Along the way, the
+`train` command's reported loss changed from the single final
+training step's value to an average over the last `min(steps, 20)`
+steps: with this training loop's un-shuffled round-robin over
+`(context, target)` pairs, the very last step can land on an easier
+or harder example somewhat by chance, so a single-step loss was a
+noisy summary. `models::TinyTransformer` remains available as a
+further upgrade — swapping it in mainly requires satisfying its
+`head_dim == embedding_dim` constructor constraint.
 
 The following headers declare an API with **no implementation yet** —
 they exist as a starting point (`.cpp` files intentionally not

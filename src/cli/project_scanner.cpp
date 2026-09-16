@@ -1,5 +1,7 @@
 #include <cppai/cli/project_scanner.hpp>
 
+#include <cppai/cli/source_files.hpp>
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -40,19 +42,9 @@ namespace cppai::cli
 
     bool ProjectScanner::is_source_file(const std::string &path)
     {
-        static const std::vector<std::string> extensions = {
-            ".cpp", ".hpp", ".h", ".cc", ".cxx"};
-
-        for (const auto &extension : extensions)
-        {
-            if (path.size() >= extension.size() &&
-                path.compare(path.size() - extension.size(), extension.size(), extension) == 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        // Delegates to the shared definition so every project-walking
+        // tool agrees on which files count as source.
+        return cppai::cli::is_source_file(path);
     }
 
     ProjectReport ProjectScanner::scan(const std::string &root_path) const

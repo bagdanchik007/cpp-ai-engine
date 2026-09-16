@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cppai/models/language_model.hpp>
+#include <cppai/models/sequence_language_model.hpp>
 #include <cppai/tokenizer/tokenizer.hpp>
 #include <cppai/tokenizer/vocabulary.hpp>
 
@@ -36,7 +36,13 @@ namespace cppai::cli
 
         tokenizer::Tokenizer tokenizer_;
         tokenizer::Vocabulary vocabulary_;
-        std::unique_ptr<models::LanguageModel> model_;
+
+        // A recurrent (RNNCell-based) next-token model, trained fresh
+        // by each `train` command. Replaces the earlier mean-pooled
+        // LanguageModel now that models::SequenceLanguageModel exists
+        // and has been verified (see its tests) to actually learn
+        // sequential structure via backpropagation through time.
+        std::unique_ptr<models::SequenceLanguageModel> model_;
 
         void print_help() const;
         void handle_analyze(const std::vector<std::string> &args) const;
