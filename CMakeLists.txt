@@ -59,15 +59,30 @@ target_sources(cppai
         src/optim/optimizer_state.cpp
         src/tokenizer/vocabulary.cpp
         src/tokenizer/tokenizer.cpp
+        src/tokenizer/special_tokens.cpp
+        src/tokenizer/bpe_tokenizer.cpp
+        src/tokenizer/wordpiece_tokenizer.cpp
         src/data/dataset.cpp
         src/data/dataloader.cpp
         src/data/vocabulary_pruner.cpp
         src/data/collator.cpp
+        src/data/text_dataset.cpp
+        src/data/corpus_loader.cpp
+        src/data/streaming_text_dataset.cpp
         src/models/model.cpp
         src/models/language_model.cpp
         src/models/sequence_language_model.cpp
         src/models/trainer.cpp
         src/models/tiny_transformer.cpp
+        src/models/model_config.cpp
+        src/models/model_factory.cpp
+        src/models/metrics.cpp
+        src/models/early_stopping.cpp
+        src/models/sampling.cpp
+        src/models/checkpoint_manager.cpp
+        src/models/embedding_exporter.cpp
+        src/models/beam_search_decoder.cpp
+        src/models/ensemble_model.cpp
         src/cli/argument_parser.cpp
         src/cli/project_scanner.cpp
         src/cli/repl.cpp
@@ -77,6 +92,19 @@ target_sources(cppai
         src/cli/test_runner.cpp
         src/cli/suggestion_ranker.cpp
         src/cli/decision_engine.cpp
+        src/cli/source_files.cpp
+        src/cli/todo_tracker.cpp
+        src/cli/code_search_index.cpp
+        src/cli/license_header_checker.cpp
+        src/cli/build_system_detector.cpp
+        src/cli/metrics_dashboard.cpp
+        src/cli/security_scanner.cpp
+        src/cli/code_formatter.cpp
+        src/cli/dependency_graph.cpp
+        src/cli/refactor_suggester.cpp
+        src/cli/file_watcher.cpp
+        src/cli/interactive_diff_reviewer.cpp
+        src/cli/commit_message_generator.cpp
 )
 
 target_include_directories(cppai
