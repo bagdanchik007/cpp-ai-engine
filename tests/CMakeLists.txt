@@ -75,6 +75,9 @@ add_executable(cli_tests
     cli/test_runner_tests.cpp
     cli/suggestion_ranker_tests.cpp
     cli/decision_engine_tests.cpp
+    cli/repl_tests.cpp
+    cli/repository_tools_tests.cpp
+    cli/tooling_extras_tests.cpp
 )
 
 target_link_libraries(cli_tests
@@ -95,6 +98,7 @@ target_link_libraries(losses_tests
 
 add_executable(models_tests
     models/sequence_language_model_tests.cpp
+    models/model_utilities_tests.cpp
 )
 
 target_link_libraries(models_tests
