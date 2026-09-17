@@ -1,5 +1,9 @@
 #include <cppai/tokenizer/vocabulary.hpp>
 
+#include <cppai/core/error.hpp>
+
+#include <fstream>
+
 namespace cppai::tokenizer
 {
 
@@ -64,6 +68,52 @@ namespace cppai::tokenizer
     size_type Vocabulary::size() const noexcept
     {
         return id_to_token_.size();
+    }
+
+    void Vocabulary::save(const std::string &path) const
+    {
+        std::ofstream file(path);
+
+        if (!file)
+        {
+            throw Error("Failed to open vocabulary file for writing: " + path);
+        }
+
+        for (const auto &token : id_to_token_)
+        {
+            file << token << '\n';
+        }
+    }
+
+    Vocabulary Vocabulary::load(const std::string &path)
+    {
+        std::ifstream file(path);
+
+        if (!file)
+        {
+            throw Error("Failed to open vocabulary file for reading: " + path);
+        }
+
+        Vocabulary vocabulary;
+
+        // The constructor already seeded <unk> at id 0; the saved file
+        // starts with that same entry, so it is read back and skipped
+        // rather than being added a second time.
+        std::string token;
+        bool first_line = true;
+
+        while (std::getline(file, token))
+        {
+            if (first_line)
+            {
+                first_line = false;
+                continue;
+            }
+
+            vocabulary.add_token(token);
+        }
+
+        return vocabulary;
     }
 
 } // namespace cppai::tokenizer

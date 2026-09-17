@@ -34,6 +34,15 @@ namespace cppai::tokenizer
         [[nodiscard]]
         size_type size() const noexcept;
 
+        // Writes one token per line, in id order, so a reloaded
+        // Vocabulary assigns exactly the same ids as the one a model
+        // was trained against — without that, restored weights would
+        // be indexed by the wrong tokens.
+        void save(const std::string &path) const;
+
+        [[nodiscard]]
+        static Vocabulary load(const std::string &path);
+
         static constexpr size_type unknown_id = 0;
 
     private:
