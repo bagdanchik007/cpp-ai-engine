@@ -1,0 +1,17 @@
+# Matches the style already used throughout this repository: Allman
+# braces, four-space indents, and pointer/reference binding to the name.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+BreakBeforeBraces: Allman
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+DerivePointerAlignment: false
+PointerAlignment: Right
+AccessModifierOffset: -4
+NamespaceIndentation: All
+AllowShortFunctionsOnASingleLine: Empty
+AlwaysBreakTemplateDeclarations: Yes
+SortIncludes: CaseSensitive
