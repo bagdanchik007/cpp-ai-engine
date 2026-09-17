@@ -78,6 +78,7 @@ add_executable(cli_tests
     cli/repl_tests.cpp
     cli/repository_tools_tests.cpp
     cli/tooling_extras_tests.cpp
+    cli/repl_commands_tests.cpp
 )
 
 target_link_libraries(cli_tests
