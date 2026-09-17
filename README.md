@@ -73,8 +73,31 @@ Test executables are split by module: `tensor_tests`,
 ./build/cppai_console analyze .  # one-shot: scan a project and print suggestions
 ```
 
-Available REPL commands: `help`, `analyze <path>`, `train <file>
-[steps]`, `chat <text>`, `exit`.
+Available REPL commands:
+
+| Command | What it does |
+| --- | --- |
+| `help` | List the commands |
+| `analyze <path>` | Scan a source tree and list ranked suggestions |
+| `train <file> [steps]` | Train the RNN language model, then draw the loss curve |
+| `chat [opts] <text>` | Continue text; `--temperature F --top-k N --tokens N --seed N` |
+| `todo [path]` | Every TODO/FIXME with file and line |
+| `search <term> [path]` | Where an identifier appears |
+| `secrets [path]` | Likely hardcoded credentials |
+| `deps [path]` | `#include` cycles |
+| `commit-msg [path]` | Draft a commit message from the current git changes |
+| `save <prefix>` | Persist weights, vocabulary and architecture |
+| `load <prefix>` | Restore a saved session |
+| `exit` | Quit |
+
+`chat` decodes greedily by default; passing `--temperature` or
+`--top-k` switches it to sampling, which produces noticeably more
+varied text on a small corpus where greedy decoding tends to loop.
+`save`/`load` write three files (`.weights`, `.vocab`, `.config`) —
+the vocabulary travels with the weights because restored parameters
+are meaningless when indexed by different token ids, and the
+architecture travels with them so an older checkpoint still loads
+after the defaults change.
 
 `train` builds a fresh vocabulary from a text file and trains the
 built-in `LanguageModel` with SGD for the given number of steps
@@ -144,7 +167,7 @@ and `DecisionEngine` — the facade tying all of them together into the
 (including actually rewriting a file via `apply()`) and live against
 this repository itself (88 ranked suggestions on `src/nn`, correctly
 sorted by severity and file size). All of it compiles warning-free
-with `-Wall -Wextra` and is covered by the test suite (169 tests
+with `-Wall -Wextra` and is covered by the test suite (185 tests
 passing across 10 executables as of this writing).
 
 **Every API declared in this repository now has an implementation.**
@@ -155,7 +178,7 @@ layer/loss stack, the `optim::` optimizers and schedulers, the
 `models::` language models and training utilities, the `data::` and
 `tokenizer::` pipelines, `core::` logging and configuration, and the
 whole `cli::` repository-tooling suite — compiles warning-free with
-`-Wall -Wextra` across 90 source files and is covered by 169 tests
+`-Wall -Wextra` across 90 source files and is covered by 185 tests
 passing across 10 executables as of this writing.
 
 The most recently completed pieces: `cli::TodoTracker`,
