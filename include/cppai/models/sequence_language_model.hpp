@@ -5,6 +5,7 @@
 #include <cppai/nn/layers/linear.hpp>
 #include <cppai/nn/layers/rnn_cell.hpp>
 
+#include <string>
 #include <vector>
 
 namespace cppai::models
@@ -41,6 +42,14 @@ namespace cppai::models
 
         [[nodiscard]]
         std::vector<nn::Parameter *> parameters() override;
+
+        // Persists all parameters, in parameters() order, using the
+        // same one-tensor-per-block format as LanguageModel::save().
+        void save(const std::string &path) const;
+
+        // Restores parameters written by save(). The architecture must
+        // already match; only weight values are restored.
+        void load(const std::string &path);
 
     private:
         nn::Embedding embedding_;

@@ -2,7 +2,10 @@
 
 #include <cppai/core/error.hpp>
 #include <cppai/nn/activations/softmax.hpp>
+#include <cppai/tensor/tensor_io.hpp>
 #include <cppai/tensor/tensor_shape.hpp>
+
+#include <fstream>
 
 namespace cppai::models
 {
@@ -95,6 +98,36 @@ namespace cppai::models
         }
 
         return all_parameters;
+    }
+
+    void SequenceLanguageModel::save(const std::string &path) const
+    {
+        std::ofstream file(path);
+
+        if (!file)
+        {
+            throw Error("Failed to open checkpoint file for writing: " + path);
+        }
+
+        for (auto *parameter : const_cast<SequenceLanguageModel *>(this)->parameters())
+        {
+            write_tensor(file, parameter->data());
+        }
+    }
+
+    void SequenceLanguageModel::load(const std::string &path)
+    {
+        std::ifstream file(path);
+
+        if (!file)
+        {
+            throw Error("Failed to open checkpoint file for reading: " + path);
+        }
+
+        for (auto *parameter : parameters())
+        {
+            parameter->data() = read_tensor(file);
+        }
     }
 
 } // namespace cppai::models
