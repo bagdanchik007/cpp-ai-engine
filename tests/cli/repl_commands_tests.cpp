@@ -240,3 +240,124 @@ TEST_F(ReplCommandsTest, LoadReportsMissingCheckpoint)
         run("load " + (root_ / "does_not_exist").string()).find("Load failed"),
         std::string::npos);
 }
+
+TEST_F(ReplCommandsTest, AnalyzeRanksBySeverity)
+{
+    write_source("with_todo.cpp", "int a;\n// TODO: something\n");
+
+    const std::string output = run("analyze " + root_.string());
+
+    EXPECT_NE(output.find("[info]"), std::string::npos);
+    EXPECT_NE(output.find("suggestion(s)"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, AnalyzeChangedScopesToGitModifiedFiles)
+{
+    std::system(("git -C \"" + root_.string() + "\" init -q -b main").c_str());
+    std::system(("git -C \"" + root_.string() + "\" config user.email t@e.com").c_str());
+    std::system(("git -C \"" + root_.string() + "\" config user.name T").c_str());
+
+    write_source("unchanged.cpp", "int a() { return 1; }\n");
+    write_source("changed.cpp", "int b() { return 2; }\n");
+    std::system(("git -C \"" + root_.string() + "\" add -A").c_str());
+    std::system(("git -C \"" + root_.string() + "\" commit -q -m init").c_str());
+
+    write_source("changed.cpp", "int b() { return 2; }\n// TODO: only this file changed\n");
+
+    const std::string scoped = run("analyze --changed " + root_.string());
+    const std::string unscoped = run("analyze " + root_.string());
+
+    EXPECT_NE(scoped.find("changed.cpp"), std::string::npos);
+    EXPECT_EQ(scoped.find("unchanged.cpp"), std::string::npos);
+
+    // The unscoped scan sees both files' missing-test-coverage
+    // suggestions, so it reports strictly more than the scoped one.
+    const auto count_of = [](const std::string &text)
+    {
+        const std::size_t pos = text.find(' ');
+        return pos == std::string::npos ? 0 : std::stoi(text.substr(0, pos));
+    };
+
+    EXPECT_GT(count_of(unscoped), count_of(scoped));
+}
+
+TEST_F(ReplCommandsTest, AnalyzeChangedOnCleanRepoFindsNothing)
+{
+    std::system(("git -C \"" + root_.string() + "\" init -q -b main").c_str());
+    std::system(("git -C \"" + root_.string() + "\" config user.email t@e.com").c_str());
+    std::system(("git -C \"" + root_.string() + "\" config user.name T").c_str());
+
+    write_source("a.cpp", "int a;\n");
+    std::system(("git -C \"" + root_.string() + "\" add -A").c_str());
+    std::system(("git -C \"" + root_.string() + "\" commit -q -m init").c_str());
+
+    EXPECT_NE(
+        run("analyze --changed " + root_.string()).find("No suggestions"),
+        std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, TestCommandReportsBuildFailureGracefully)
+{
+    // No configured build directory exists at this path, so the build
+    // step fails immediately rather than TestRunner attempting to
+    // parse test output that was never produced.
+    const std::string output = run("test " + (root_ / "no_such_build_dir").string());
+
+    EXPECT_NE(output.find("Build failed"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, TestCommandReportsBuildFailureHonestly)
+{
+    // No cmake build directory exists here, so this exercises the
+    // honest failure path rather than a real build/test run (which
+    // would need a configured CMake build tree and is covered
+    // instead by TestRunnerTest's output-parsing tests).
+    const std::string output = run("test " + (root_ / "no_such_build_dir").string());
+
+    EXPECT_NE(output.find("Build failed"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, HelpMentionsTestCommand)
+{
+    EXPECT_NE(run("help").find("test [build_dir]"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, TrainAcceptsADirectoryOfCorpusFiles)
+{
+    const auto corpus_dir = root_ / "corpus_dir";
+    std::filesystem::create_directories(corpus_dir);
+
+    { std::ofstream(corpus_dir / "a.txt") << "the quick brown fox jumps over the lazy dog"; }
+    { std::ofstream(corpus_dir / "b.md") << "the lazy dog sleeps under the old oak tree"; }
+    { std::ofstream(corpus_dir / "c.bin") << "should be ignored"; }
+
+    std::istringstream input;
+    std::ostringstream output;
+
+    cppai::cli::Repl repl(input, output);
+    repl.execute("train " + corpus_dir.string() + " 40");
+
+    const std::string result = output.str();
+
+    EXPECT_NE(result.find("Trained on"), std::string::npos);
+    EXPECT_EQ(result.find("ignored"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, TrainReportsRecentPerplexity)
+{
+    std::istringstream input;
+    std::ostringstream output;
+
+    cppai::cli::Repl repl(input, output);
+    repl.execute("train " + corpus_path_.string() + " 30");
+
+    EXPECT_NE(output.str().find("Perplexity"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, TrainOnEmptyDirectoryReportsNoFiles)
+{
+    const auto empty_dir = root_ / "empty_dir";
+    std::filesystem::create_directories(empty_dir);
+
+    EXPECT_NE(run("train " + empty_dir.string()).find("No .txt or .md files"), std::string::npos);
+}
