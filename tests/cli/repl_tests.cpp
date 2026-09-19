@@ -80,7 +80,7 @@ TEST_F(ReplTest, TrainThenChatProducesGeneratedContinuation)
     EXPECT_NE(result.find("the quick ->"), std::string::npos);
 }
 
-TEST_F(ReplTest, AnalyzeReportsScannedFileCount)
+TEST_F(ReplTest, AnalyzeReportsRankedSuggestions)
 {
     std::istringstream input;
     std::ostringstream output;
@@ -88,5 +88,13 @@ TEST_F(ReplTest, AnalyzeReportsScannedFileCount)
     cppai::cli::Repl repl(input, output);
     repl.execute("analyze " + corpus_path_.parent_path().string());
 
-    EXPECT_NE(output.str().find("Scanned"), std::string::npos);
+    // The corpus fixture file has no matching test and no source
+    // extension issues, so at minimum the summary header should show
+    // up, whether or not it happens to find suggestions.
+    const std::string result = output.str();
+    const bool has_summary =
+        result.find("suggestion(s)") != std::string::npos ||
+        result.find("No suggestions") != std::string::npos;
+
+    EXPECT_TRUE(has_summary);
 }
