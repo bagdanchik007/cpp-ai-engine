@@ -78,8 +78,9 @@ Available REPL commands:
 | Command | What it does |
 | --- | --- |
 | `help` | List the commands |
-| `analyze <path>` | Scan a source tree and list ranked suggestions |
-| `train <file> [steps]` | Train the RNN language model, then draw the loss curve |
+| `analyze [--changed] [path]` | Scan a source tree and list ranked suggestions; `--changed` limits to git-modified files |
+| `train <file\|dir> [steps]` | Train the RNN model, then report perplexity and draw the loss curve; a directory reads every `.txt`/`.md` file |
+| `test [build_dir]` | Build and run this project's own test suite (default: `build`) |
 | `chat [opts] <text>` | Continue text; `--temperature F --top-k N --tokens N --seed N` |
 | `todo [path]` | Every TODO/FIXME with file and line |
 | `search <term> [path]` | Where an identifier appears |
@@ -167,7 +168,7 @@ and `DecisionEngine` — the facade tying all of them together into the
 (including actually rewriting a file via `apply()`) and live against
 this repository itself (88 ranked suggestions on `src/nn`, correctly
 sorted by severity and file size). All of it compiles warning-free
-with `-Wall -Wextra` and is covered by the test suite (185 tests
+with `-Wall -Wextra` and is covered by the test suite (194 tests
 passing across 10 executables as of this writing).
 
 **Every API declared in this repository now has an implementation.**
@@ -178,7 +179,7 @@ layer/loss stack, the `optim::` optimizers and schedulers, the
 `models::` language models and training utilities, the `data::` and
 `tokenizer::` pipelines, `core::` logging and configuration, and the
 whole `cli::` repository-tooling suite — compiles warning-free with
-`-Wall -Wextra` across 90 source files and is covered by 185 tests
+`-Wall -Wextra` across 90 source files and is covered by 194 tests
 passing across 10 executables as of this writing.
 
 The most recently completed pieces: `cli::TodoTracker`,
@@ -198,6 +199,50 @@ Along the way the shared "which files count as source" logic was
 extracted into `cli::source_files.hpp` rather than being copied into
 each new project-walking tool, and `ProjectScanner`/`TodoTracker`
 were refactored onto it.
+
+### Wiring the tools into the REPL — and two real bugs it caught
+
+Every implemented `cli::` and `models::` piece is now reachable from
+the console app, not just from code: `todo`, `search`, `secrets`,
+`deps` and `commit-msg` expose `TodoTracker`, `CodeSearchIndex`,
+`SecurityScanner`, `DependencyGraph` and `CommitMessageGenerator`
+directly; `train` renders its loss curve with `MetricsDashboard`;
+`chat` gained `--temperature`/`--top-k`/`--tokens`/`--seed` via
+`sample_with_temperature()`/`sample_top_k()`; and `save`/`load`
+persist a full session (weights, vocabulary, architecture) across
+process restarts — verified by actually restarting the process in a
+test and confirming identical generated output. `analyze` now goes
+through `DecisionEngine` for ranked, severity-labeled suggestions,
+with a `--changed` flag to scope the scan to files `git status`
+reports as modified.
+
+Writing tests for `--changed` surfaced two real bugs in
+`DecisionEngine`, both fixed and covered:
+`ReplCommandsTest.AnalyzeChangedScopesToGitModifiedFiles` caught a
+suffix-matching bug where a file like `unchanged.cpp` was
+incorrectly treated as matching a changed path of `changed.cpp`,
+because the match had no path-boundary check; and
+`ReplCommandsTest.AnalyzeChangedOnCleanRepoFindsNothing` caught
+`make_decisions()`'s "no source files were found" message firing
+on a clean repository with nothing changed, conflating "nothing
+changed" with "no source files exist". Both are recorded here
+rather than only in the commit history because they're a concrete
+example of tests earning their keep — not just checking that
+already-correct code stays correct, but catching wrong code before
+it shipped.
+
+A `test` command was added on top of `TestRunner`, so the REPL can
+build and run this project's own test suite from inside a session
+(e.g. after `analyze --changed` and a manual edit) instead of
+switching to a shell; it degrades to a clear message rather than a
+crash when the given directory isn't a configured CMake build (the
+case exercised in `ReplCommandsTest.TestCommandReportsBuildFailureGracefully`,
+since this development environment itself has no `cmake` binary
+installed to build against). `train` also gained directory support
+via `CorpusLoader` — pointing it at a folder concatenates every
+`.txt`/`.md` file in it — and now reports a recent-window perplexity
+alongside the loss, using the same tail-averaging reasoning as the
+loss figure itself.
 
 `Repl::handle_train`/`handle_chat` now train and run a real
 `models::SequenceLanguageModel` (RNN, via `nn::RNNCell`) instead of
