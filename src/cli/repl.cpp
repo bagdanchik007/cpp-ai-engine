@@ -4,6 +4,11 @@
 
 #include <cppai/cli/code_search_index.hpp>
 #include <cppai/cli/commit_message_generator.hpp>
+#include <cppai/cli/decision_engine.hpp>
+#include <cppai/cli/test_runner.hpp>
+#include <cppai/data/corpus_loader.hpp>
+#include <cppai/models/metrics.hpp>
+#include <cppai/nn/activations/softmax.hpp>
 #include <cppai/cli/dependency_graph.hpp>
 #include <cppai/cli/git_inspector.hpp>
 #include <cppai/cli/metrics_dashboard.hpp>
@@ -15,6 +20,7 @@
 #include <cppai/optim/sgd.hpp>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -39,6 +45,21 @@ namespace cppai::cli
             return words;
         }
 
+        const char *severity_label(Severity severity)
+        {
+            switch (severity)
+            {
+            case Severity::Critical:
+                return "[critical]";
+            case Severity::Warning:
+                return "[warning] ";
+            case Severity::Info:
+                return "[info]    ";
+            }
+
+            return "[info]    ";
+        }
+
     } // namespace
 
     Repl::Repl(std::istream &input, std::ostream &output)
@@ -51,8 +72,8 @@ namespace cppai::cli
     {
         output_ << "Available commands:\n"
                 << "  help                   Show this message\n"
-                << "  analyze <path>         Scan a source tree and list rule-based suggestions\n"
-                << "  train <file> [steps]   Train a small recurrent (RNN) language model on a text file (default 200 steps)\n"
+                << "  analyze [--changed] [path]  Ranked suggestions; --changed limits to git-modified files\n"
+                << "  train <file|dir> [steps]  Train the RNN model; a directory reads every .txt/.md file (default 200 steps)\n"
                 << "  chat [opts] <text>     Continue text; opts: --temperature F --top-k N --tokens N --seed N\n"
                 << "  todo [path]            List every TODO/FIXME marker with file and line\n"
                 << "  search <term> [path]   Find where an identifier appears\n"
@@ -61,33 +82,47 @@ namespace cppai::cli
                 << "  commit-msg [path]      Draft a commit message from the current git changes\n"
                 << "  save <prefix>          Save the trained model, vocabulary and config\n"
                 << "  load <prefix>          Restore a previously saved session\n"
+                << "  test [build_dir]       Build and run this project's own test suite (default: build)\n"
                 << "  exit                   Quit\n";
     }
 
     void Repl::handle_analyze(const std::vector<std::string> &args) const
     {
-        const std::string path = args.empty() ? "." : args.front();
+        // "analyze --changed [path]" scopes the scan to files
+        // GitInspector reports as changed; a plain "analyze [path]"
+        // scans everything.
+        bool changed_files_only = false;
+        size_type path_index = 0;
 
-        ProjectScanner scanner;
-        ProjectReport report = scanner.scan(path);
-
-        output_ << "Scanned " << report.files.size() << " file(s), "
-                << report.total_line_count << " total line(s).\n";
-
-        auto decisions = make_decisions(report);
-
-        for (const auto &decision : decisions)
+        if (!args.empty() && args[0] == "--changed")
         {
-            if (!decision.file.empty())
+            changed_files_only = true;
+            path_index = 1;
+        }
+
+        const std::string path = path_index < args.size() ? args[path_index] : ".";
+
+        DecisionEngine engine(path);
+        const auto ranked = engine.analyze(changed_files_only);
+
+        if (ranked.empty())
+        {
+            output_ << "No suggestions for " << path << ".\n";
+            return;
+        }
+
+        output_ << ranked.size() << " suggestion(s), highest priority first:\n";
+
+        for (const auto &entry : ranked)
+        {
+            output_ << "- " << severity_label(entry.severity);
+
+            if (!entry.decision.file.empty())
             {
-                output_ << "- [" << decision.file << "] ";
-            }
-            else
-            {
-                output_ << "- ";
+                output_ << " [" << entry.decision.file << ']';
             }
 
-            output_ << decision.message << '\n';
+            output_ << ' ' << entry.decision.message << '\n';
         }
     }
 
@@ -95,22 +130,44 @@ namespace cppai::cli
     {
         if (args.empty())
         {
-            output_ << "Usage: train <corpus_file> [steps]\n";
+            output_ << "Usage: train <corpus_file_or_directory> [steps]\n";
             return;
         }
 
-        std::ifstream file(args[0]);
+        const std::string &path = args[0];
 
-        if (!file)
+        // A directory is read via CorpusLoader (every .txt/.md file,
+        // concatenated in a deterministic order); a single file is
+        // read directly, matching the previous behaviour exactly.
+        std::string corpus_text;
+
+        if (std::filesystem::is_directory(path))
         {
-            output_ << "Could not open file: " << args[0] << '\n';
-            return;
+            data::CorpusLoader loader;
+            corpus_text = loader.load_directory(path, {".txt", ".md"});
+
+            if (corpus_text.empty())
+            {
+                output_ << "No .txt or .md files found under " << path << ".\n";
+                return;
+            }
+        }
+        else
+        {
+            std::ifstream file(path);
+
+            if (!file)
+            {
+                output_ << "Could not open file: " << path << '\n';
+                return;
+            }
+
+            std::ostringstream buffer;
+            buffer << file.rdbuf();
+            corpus_text = buffer.str();
         }
 
-        std::ostringstream buffer;
-        buffer << file.rdbuf();
-
-        auto tokens = tokenizer_.tokenize(buffer.str());
+        auto tokens = tokenizer_.tokenize(corpus_text);
 
         constexpr size_type context_size = 2;
 
@@ -161,6 +218,11 @@ namespace cppai::cli
         std::vector<float64> loss_curve;
         loss_curve.reserve(steps);
 
+        // The probability actually assigned to the correct next token
+        // at each recent step, feeding perplexity() below.
+        std::vector<float64> recent_token_probabilities;
+        recent_token_probabilities.reserve(window_size);
+
         for (size_type step = 0; step < steps; ++step)
         {
             const size_type i = context_size + (step % (ids.size() - context_size));
@@ -193,6 +255,17 @@ namespace cppai::cli
             if (step >= steps - window_size)
             {
                 recent_losses.push_back(loss.data()[0]);
+
+                const size_type vocabulary_size = logits.data().shape()[1];
+                Tensor flat_logits(TensorShape{vocabulary_size});
+
+                for (size_type v = 0; v < vocabulary_size; ++v)
+                {
+                    flat_logits[v] = logits.data()[v];
+                }
+
+                const Tensor probabilities = nn::softmax(flat_logits);
+                recent_token_probabilities.push_back(probabilities[target]);
             }
 
             loss_curve.push_back(loss.data()[0]);
@@ -214,6 +287,14 @@ namespace cppai::cli
                 << vocabulary_.size() << " unique) for " << steps << " steps.\n"
                 << "Loss: " << first_loss << " -> " << average_recent_loss
                 << " (avg over last " << recent_losses.size() << " steps)\n";
+
+        if (!recent_token_probabilities.empty())
+        {
+            // A recent-window perplexity, for the same reason the loss
+            // above is averaged rather than taken from a single step.
+            output_ << "Perplexity (recent): "
+                    << models::perplexity(recent_token_probabilities) << '\n';
+        }
 
         MetricsDashboard dashboard;
         output_ << dashboard.render(loss_curve);
@@ -561,6 +642,43 @@ namespace cppai::cli
                 << prefix << ".*\n";
     }
 
+    void Repl::handle_test(const std::vector<std::string> &args) const
+    {
+        const std::string build_directory = args.empty() ? "build" : args.front();
+
+        output_ << "Building and running tests in " << build_directory
+                << " (this can take a while)...\n";
+
+        TestRunner runner(build_directory);
+        const auto result = runner.run();
+
+        if (!result.build_succeeded)
+        {
+            output_ << "Build failed. Run 'cmake --build " << build_directory
+                    << "' directly to see the full error output.\n";
+            return;
+        }
+
+        if (!result.ran || result.cases.empty())
+        {
+            output_ << "Build succeeded, but no test results could be parsed. "
+                    << "Is " << build_directory << " a configured CMake build "
+                    << "directory with ctest available?\n";
+            return;
+        }
+
+        output_ << result.passed_count << " passed, " << result.failed_count
+                << " failed (" << result.cases.size() << " total).\n";
+
+        for (const auto &test_case : result.cases)
+        {
+            if (!test_case.passed)
+            {
+                output_ << "  FAILED: " << test_case.name << '\n';
+            }
+        }
+    }
+
     void Repl::execute(const std::string &line)
     {
         auto words = split_words(line);
@@ -616,6 +734,10 @@ namespace cppai::cli
         else if (command == "load")
         {
             handle_load(args);
+        }
+        else if (command == "test")
+        {
+            handle_test(args);
         }
         else if (command == "exit" || command == "quit")
         {
