@@ -70,6 +70,11 @@ namespace cppai::cli
         void handle_save(const std::vector<std::string> &args) const;
         void handle_load(const std::vector<std::string> &args);
 
+        // Builds and runs the project's own test suite via TestRunner,
+        // so a proposed change's effect on the tests can be checked
+        // from the same session that made it.
+        void handle_test(const std::vector<std::string> &args) const;
+
         // Picks the next token according to the decoding strategy in
         // `config`; step_offset keeps successive draws from repeating
         // the same sampled token.
