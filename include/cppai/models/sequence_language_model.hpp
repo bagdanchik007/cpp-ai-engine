@@ -43,6 +43,12 @@ namespace cppai::models
         [[nodiscard]]
         std::vector<nn::Parameter *> parameters() override;
 
+        // Exposes the token embedding table for inspection/export
+        // (e.g. via models::EmbeddingExporter), without allowing
+        // callers to replace the layer itself.
+        [[nodiscard]]
+        const nn::Embedding &embedding() const noexcept;
+
         // Persists all parameters, in parameters() order, using the
         // same one-tensor-per-block format as LanguageModel::save().
         void save(const std::string &path) const;

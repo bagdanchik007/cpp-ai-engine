@@ -130,4 +130,9 @@ namespace cppai::models
         }
     }
 
+    const nn::Embedding &SequenceLanguageModel::embedding() const noexcept
+    {
+        return embedding_;
+    }
+
 } // namespace cppai::models
