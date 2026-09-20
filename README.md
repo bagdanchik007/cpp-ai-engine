@@ -79,8 +79,12 @@ Available REPL commands:
 | --- | --- |
 | `help` | List the commands |
 | `analyze [--changed] [path]` | Scan a source tree and list ranked suggestions; `--changed` limits to git-modified files |
-| `train <file\|dir> [steps]` | Train the RNN model, then report perplexity and draw the loss curve; a directory reads every `.txt`/`.md` file |
+| `train <file\|dir> [steps] [--patience N]` | Train the RNN model, then report perplexity and draw the loss curve; a directory reads every `.txt`/`.md` file; `--patience` stops early once training loss plateaus |
 | `test [build_dir]` | Build and run this project's own test suite (default: `build`) |
+| `refactor [path]` | Name specific long functions worth splitting, via ComplexityAnalyzer/RefactorSuggester |
+| `license <header_file> [path] [--fix]` | Check for (or add) a license header across a source tree |
+| `build-info [path]` | Detect the project's build system (CMake, Make, npm/yarn, Cargo, Python) |
+| `export-embeddings <path.tsv>` | Export the trained model's token embeddings for external visualization |
 | `chat [opts] <text>` | Continue text; `--temperature F --top-k N --tokens N --seed N` |
 | `todo [path]` | Every TODO/FIXME with file and line |
 | `search <term> [path]` | Where an identifier appears |
@@ -168,7 +172,7 @@ and `DecisionEngine` — the facade tying all of them together into the
 (including actually rewriting a file via `apply()`) and live against
 this repository itself (88 ranked suggestions on `src/nn`, correctly
 sorted by severity and file size). All of it compiles warning-free
-with `-Wall -Wextra` and is covered by the test suite (194 tests
+with `-Wall -Wextra` and is covered by the test suite (208 tests
 passing across 10 executables as of this writing).
 
 **Every API declared in this repository now has an implementation.**
@@ -179,7 +183,7 @@ layer/loss stack, the `optim::` optimizers and schedulers, the
 `models::` language models and training utilities, the `data::` and
 `tokenizer::` pipelines, `core::` logging and configuration, and the
 whole `cli::` repository-tooling suite — compiles warning-free with
-`-Wall -Wextra` across 90 source files and is covered by 194 tests
+`-Wall -Wextra` across 90 source files and is covered by 208 tests
 passing across 10 executables as of this writing.
 
 The most recently completed pieces: `cli::TodoTracker`,
@@ -242,7 +246,42 @@ installed to build against). `train` also gained directory support
 via `CorpusLoader` — pointing it at a folder concatenates every
 `.txt`/`.md` file in it — and now reports a recent-window perplexity
 alongside the loss, using the same tail-averaging reasoning as the
-loss figure itself.
+loss figure itself. A `--patience` flag added `EarlyStopping` to the
+training loop; it's checked against a rolling average of training
+loss rather than a held-out validation metric, since this REPL still
+has no train/validation split — documented as such rather than
+implying it guards against overfitting.
+
+`export-embeddings`, `license`, `build-info` and `refactor` wire up
+`EmbeddingExporter`, `LicenseHeaderChecker`, `BuildSystemDetector`
+and `RefactorSuggester` respectively (the last needed a small,
+well-justified addition: `SequenceLanguageModel::embedding()`, a
+read-only accessor the model didn't previously expose).
+
+### A significant ComplexityAnalyzer bug, found by actually using it
+
+Wiring up `refactor` surfaced a serious bug that had been present
+since `ComplexityAnalyzer` was first implemented: its long-function
+detection only looked for a function's opening brace at a source
+file's outermost nesting level (depth 0). Since virtually every
+function in idiomatically namespaced C++ — including this entire
+project, where everything lives inside `namespace cppai::...` — sits
+at depth 1 or deeper, `ComplexityAnalyzer` had never actually
+detected a single long function in this codebase, silently. `analyze`
+and `refactor` had been returning correct-looking output for other
+reasons (missing-test-coverage and duplicate-line decisions still
+fired) while this one entire category of finding was dead code in
+practice.
+
+The existing tests didn't catch it because they all defined their
+test functions directly at file scope, with no enclosing namespace —
+the one case this bug didn't affect. The fix replaces the depth==0
+check with a proper stack of open scopes, each tracked independently
+regardless of nesting; `ComplexityAnalyzerTest.DetectsLongFunctionInsideNamespaces`
+and `...InsideNamespaceAndClass` now cover the case that was missing,
+and running it against this project's own `src/cli/repl.cpp` finds
+`Repl::handle_train` at 247 lines — a real, useful finding that a
+correct implementation should have been reporting all along.
 
 `Repl::handle_train`/`handle_chat` now train and run a real
 `models::SequenceLanguageModel` (RNN, via `nn::RNNCell`) instead of
