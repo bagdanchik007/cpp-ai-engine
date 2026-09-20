@@ -75,6 +75,22 @@ namespace cppai::cli
         // from the same session that made it.
         void handle_test(const std::vector<std::string> &args) const;
 
+        // Exports the trained model's token embeddings to a TSV file
+        // via models::EmbeddingExporter, for inspection in external
+        // tools such as the TensorFlow Embedding Projector.
+        void handle_export_embeddings(const std::vector<std::string> &args) const;
+
+        // Repository hygiene: checks (and optionally fixes) missing
+        // license headers, and reports which build system a project
+        // root uses.
+        void handle_license(const std::vector<std::string> &args) const;
+        void handle_build_info(const std::vector<std::string> &args) const;
+
+        // Concrete, function-named refactoring suggestions via
+        // RefactorSuggester, more specific than analyze's generic
+        // "consider splitting this file" message.
+        void handle_refactor(const std::vector<std::string> &args) const;
+
         // Picks the next token according to the decoding strategy in
         // `config`; step_offset keeps successive draws from repeating
         // the same sampled token.
