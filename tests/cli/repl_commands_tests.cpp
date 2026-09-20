@@ -361,3 +361,151 @@ TEST_F(ReplCommandsTest, TrainOnEmptyDirectoryReportsNoFiles)
 
     EXPECT_NE(run("train " + empty_dir.string()).find("No .txt or .md files"), std::string::npos);
 }
+
+TEST_F(ReplCommandsTest, TrainWithPatienceStopsBeforeRequestedSteps)
+{
+    std::istringstream input;
+    std::ostringstream output;
+
+    cppai::cli::Repl repl(input, output);
+    repl.execute("train " + corpus_path_.string() + " 500 --patience 1");
+
+    EXPECT_NE(output.str().find("stopped early"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, TrainWithoutPatienceRunsRequestedSteps)
+{
+    std::istringstream input;
+    std::ostringstream output;
+
+    cppai::cli::Repl repl(input, output);
+    repl.execute("train " + corpus_path_.string() + " 25");
+
+    const std::string result = output.str();
+
+    EXPECT_EQ(result.find("stopped early"), std::string::npos);
+    EXPECT_NE(result.find("for 25 steps"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, TrainRejectsPatienceWithoutValue)
+{
+    EXPECT_NE(
+        run("train " + corpus_path_.string() + " --patience").find("Missing value"),
+        std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, ExportEmbeddingsBeforeTrainingIsRefused)
+{
+    EXPECT_NE(
+        run("export-embeddings " + (root_ / "e.tsv").string()).find("Nothing to export"),
+        std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, ExportEmbeddingsWritesOneRowPerToken)
+{
+    const std::string path = (root_ / "embeddings.tsv").string();
+
+    std::istringstream input;
+    std::ostringstream output;
+
+    cppai::cli::Repl repl(input, output);
+    repl.execute("train " + corpus_path_.string() + " 20");
+    repl.execute("export-embeddings " + path);
+
+    EXPECT_NE(output.str().find("Exported"), std::string::npos);
+
+    std::ifstream file(path);
+    int line_count = 0;
+    std::string line;
+
+    while (std::getline(file, line))
+    {
+        ++line_count;
+    }
+
+    EXPECT_GT(line_count, 0);
+}
+
+TEST_F(ReplCommandsTest, LicenseCommandReportsMissingHeaders)
+{
+    const auto header_path = root_ / "header.txt";
+    std::ofstream(header_path) << "// Copyright 2026\n";
+
+    write_source("no_header.cpp", "int a;\n");
+
+    const std::string output = run(
+        "license " + header_path.string() + " " + root_.string());
+
+    EXPECT_NE(output.find("missing the header"), std::string::npos);
+    EXPECT_NE(output.find("no_header.cpp"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, LicenseCommandFixesWithFlag)
+{
+    const auto header_path = root_ / "header.txt";
+    std::ofstream(header_path) << "// Copyright 2026\n";
+
+    write_source("no_header.cpp", "int a;\n");
+
+    (void)run("license " + header_path.string() + " " + root_.string() + " --fix");
+
+    std::ifstream fixed(root_ / "no_header.cpp");
+    std::ostringstream content;
+    content << fixed.rdbuf();
+
+    EXPECT_EQ(content.str().rfind("// Copyright 2026", 0), 0u);
+}
+
+TEST_F(ReplCommandsTest, LicenseCommandReportsCleanTree)
+{
+    const auto header_path = root_ / "header.txt";
+    std::ofstream(header_path) << "// Copyright 2026\n";
+
+    write_source("has_header.cpp", "// Copyright 2026\nint a;\n");
+
+    EXPECT_NE(
+        run("license " + header_path.string() + " " + root_.string())
+            .find("already has the header"),
+        std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, BuildInfoDetectsCMake)
+{
+    write_source("CMakeLists.txt", "project(x)\n");
+
+    EXPECT_NE(run("build-info " + root_.string()).find("CMake"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, BuildInfoReportsUnknownForEmptyTree)
+{
+    EXPECT_NE(
+        run("build-info " + root_.string()).find("Could not identify"),
+        std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, RefactorCommandNamesTheLongFunction)
+{
+    std::string source = "void process_everything()\n{\n";
+
+    for (int i = 0; i < 70; ++i)
+    {
+        source += "    doSomething();\n";
+    }
+
+    source += "}\n";
+
+    write_source("a.cpp", source);
+
+    const std::string output = run("refactor " + root_.string());
+
+    EXPECT_NE(output.find("process_everything"), std::string::npos);
+}
+
+TEST_F(ReplCommandsTest, RefactorCommandReportsNoCandidatesForShortFunctions)
+{
+    write_source("a.cpp", "int add(int a, int b) { return a + b; }\n");
+
+    EXPECT_NE(
+        run("refactor " + root_.string()).find("No long-function extraction candidates"),
+        std::string::npos);
+}

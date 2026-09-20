@@ -93,6 +93,49 @@ TEST_F(ProjectScannerTest, FindsDuplicateLines)
 
 #include <cppai/cli/complexity_analyzer.hpp>
 
+TEST(ComplexityAnalyzerTest, DetectsLongFunctionInsideNamespaces)
+{
+    // Regression test: the original implementation only looked for
+    // a function's brace at file-top-level (depth 0), so a function
+    // nested inside a namespace — the normal case for virtually all
+    // idiomatic C++, including this project's own source — was never
+    // detected at all. This wraps the function two levels deep, like
+    // `namespace cppai::cli { class Foo { void bar() { ... } }; }`.
+    std::string source = "namespace outer\n{\nnamespace inner\n{\n    void foo()\n    {\n";
+
+    for (int i = 0; i < 70; ++i)
+    {
+        source += "        doSomething();\n";
+    }
+
+    source += "    }\n} // namespace inner\n} // namespace outer\n";
+
+    cppai::cli::ComplexityAnalyzer analyzer;
+    auto long_functions = analyzer.find_long_functions(source, 60);
+
+    ASSERT_EQ(long_functions.size(), 1);
+    EXPECT_EQ(long_functions[0].first, "foo");
+}
+
+TEST(ComplexityAnalyzerTest, DetectsLongFunctionInsideNamespaceAndClass)
+{
+    std::string source =
+        "namespace cppai::cli\n{\n    class Widget\n    {\n    public:\n        void run()\n        {\n";
+
+    for (int i = 0; i < 70; ++i)
+    {
+        source += "            step();\n";
+    }
+
+    source += "        }\n    };\n} // namespace cppai::cli\n";
+
+    cppai::cli::ComplexityAnalyzer analyzer;
+    auto long_functions = analyzer.find_long_functions(source, 60);
+
+    ASSERT_EQ(long_functions.size(), 1);
+    EXPECT_EQ(long_functions[0].first, "run");
+}
+
 TEST(ComplexityAnalyzerTest, DetectsLongFunction)
 {
     std::string source = "void foo()\n{\n";
