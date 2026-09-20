@@ -7,6 +7,11 @@
 #include <cppai/cli/decision_engine.hpp>
 #include <cppai/cli/test_runner.hpp>
 #include <cppai/data/corpus_loader.hpp>
+#include <cppai/models/early_stopping.hpp>
+#include <cppai/cli/build_system_detector.hpp>
+#include <cppai/cli/license_header_checker.hpp>
+#include <cppai/cli/refactor_suggester.hpp>
+#include <cppai/models/embedding_exporter.hpp>
 #include <cppai/models/metrics.hpp>
 #include <cppai/nn/activations/softmax.hpp>
 #include <cppai/cli/dependency_graph.hpp>
@@ -22,6 +27,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <numeric>
+#include <optional>
 #include <iostream>
 #include <sstream>
 
@@ -60,6 +67,27 @@ namespace cppai::cli
             return "[info]    ";
         }
 
+        const char *build_system_name(BuildSystem system)
+        {
+            switch (system)
+            {
+            case BuildSystem::CMake:
+                return "CMake";
+            case BuildSystem::Make:
+                return "Make";
+            case BuildSystem::NpmOrYarn:
+                return "npm/yarn";
+            case BuildSystem::CargoRust:
+                return "Cargo (Rust)";
+            case BuildSystem::PythonSetuptools:
+                return "Python (setuptools)";
+            case BuildSystem::Unknown:
+                return "unknown";
+            }
+
+            return "unknown";
+        }
+
     } // namespace
 
     Repl::Repl(std::istream &input, std::ostream &output)
@@ -73,7 +101,7 @@ namespace cppai::cli
         output_ << "Available commands:\n"
                 << "  help                   Show this message\n"
                 << "  analyze [--changed] [path]  Ranked suggestions; --changed limits to git-modified files\n"
-                << "  train <file|dir> [steps]  Train the RNN model; a directory reads every .txt/.md file (default 200 steps)\n"
+                << "  train <file|dir> [steps] [--patience N]  Train the RNN model (dir reads every .txt/.md; --patience stops early on plateaued loss)\n"
                 << "  chat [opts] <text>     Continue text; opts: --temperature F --top-k N --tokens N --seed N\n"
                 << "  todo [path]            List every TODO/FIXME marker with file and line\n"
                 << "  search <term> [path]   Find where an identifier appears\n"
@@ -83,6 +111,10 @@ namespace cppai::cli
                 << "  save <prefix>          Save the trained model, vocabulary and config\n"
                 << "  load <prefix>          Restore a previously saved session\n"
                 << "  test [build_dir]       Build and run this project's own test suite (default: build)\n"
+                << "  export-embeddings <path.tsv>  Export trained token embeddings for external visualization\n"
+                << "  license <header_file> [path] [--fix]  Check for (or add) a license header\n"
+                << "  refactor [path]        Suggest which long functions to split, by name\n"
+                << "  build-info [path]      Detect the project's build system\n"
                 << "  exit                   Quit\n";
     }
 
@@ -179,10 +211,25 @@ namespace cppai::cli
         }
 
         size_type steps = 200;
+        std::optional<size_type> patience;
 
-        if (args.size() > 1)
+        for (size_type i = 1; i < args.size(); ++i)
         {
-            steps = static_cast<size_type>(std::stoul(args[1]));
+            if (args[i] == "--patience")
+            {
+                if (i + 1 >= args.size())
+                {
+                    output_ << "Missing value for --patience.\n";
+                    return;
+                }
+
+                patience = static_cast<size_type>(std::stoul(args[i + 1]));
+                ++i;
+            }
+            else
+            {
+                steps = static_cast<size_type>(std::stoul(args[i]));
+            }
         }
 
         vocabulary_ = tokenizer::Vocabulary();
@@ -223,6 +270,22 @@ namespace cppai::cli
         std::vector<float64> recent_token_probabilities;
         recent_token_probabilities.reserve(window_size);
 
+        // --patience uses EarlyStopping against a rolling average of
+        // training loss, not a held-out validation set (this REPL has
+        // no train/validation split); it stops once loss has stopped
+        // improving rather than guarding against overfitting.
+        std::optional<models::EarlyStopping> early_stopping;
+        constexpr size_type check_interval = 10;
+        std::vector<float64> check_window;
+
+        if (patience.has_value())
+        {
+            early_stopping.emplace(*patience);
+            check_window.reserve(check_interval);
+        }
+
+        size_type steps_run = 0;
+
         for (size_type step = 0; step < steps; ++step)
         {
             const size_type i = context_size + (step % (ids.size() - context_size));
@@ -252,10 +315,19 @@ namespace cppai::cli
                 first_loss = loss.data()[0];
             }
 
-            if (step >= steps - window_size)
-            {
-                recent_losses.push_back(loss.data()[0]);
+            // A true rolling window (push then trim to window_size)
+            // rather than a cutoff computed from the requested step
+            // count: with --patience, the loop can stop before
+            // reaching that cutoff, which would otherwise leave this
+            // window empty.
+            recent_losses.push_back(loss.data()[0]);
 
+            if (recent_losses.size() > window_size)
+            {
+                recent_losses.erase(recent_losses.begin());
+            }
+
+            {
                 const size_type vocabulary_size = logits.data().shape()[1];
                 Tensor flat_logits(TensorShape{vocabulary_size});
 
@@ -266,9 +338,35 @@ namespace cppai::cli
 
                 const Tensor probabilities = nn::softmax(flat_logits);
                 recent_token_probabilities.push_back(probabilities[target]);
+
+                if (recent_token_probabilities.size() > window_size)
+                {
+                    recent_token_probabilities.erase(recent_token_probabilities.begin());
+                }
             }
 
             loss_curve.push_back(loss.data()[0]);
+            ++steps_run;
+
+            if (early_stopping.has_value())
+            {
+                check_window.push_back(loss.data()[0]);
+
+                if (check_window.size() >= check_interval)
+                {
+                    const float64 average = std::accumulate(
+                        check_window.begin(), check_window.end(), 0.0) /
+                        static_cast<float64>(check_window.size());
+
+                    early_stopping->update(average);
+                    check_window.clear();
+
+                    if (early_stopping->should_stop())
+                    {
+                        break;
+                    }
+                }
+            }
         }
 
         float64 average_recent_loss = 0.0;
@@ -284,7 +382,16 @@ namespace cppai::cli
         }
 
         output_ << "Trained on " << tokens.size() << " tokens ("
-                << vocabulary_.size() << " unique) for " << steps << " steps.\n"
+                << vocabulary_.size() << " unique) for " << steps_run << " steps";
+
+        if (steps_run < steps)
+        {
+            output_ << " (stopped early at step " << steps_run
+                     << " of " << steps << "; loss plateaued for "
+                     << *patience << " check(s))";
+        }
+
+        output_ << ".\n"
                 << "Loss: " << first_loss << " -> " << average_recent_loss
                 << " (avg over last " << recent_losses.size() << " steps)\n";
 
@@ -642,6 +749,138 @@ namespace cppai::cli
                 << prefix << ".*\n";
     }
 
+    void Repl::handle_refactor(const std::vector<std::string> &args) const
+    {
+        const std::string path = args.empty() ? "." : args.front();
+
+        ProjectScanner scanner;
+        const ProjectReport report = scanner.scan(path);
+
+        RefactorSuggester suggester;
+        const auto decisions = suggester.suggest(report);
+
+        if (decisions.empty())
+        {
+            output_ << "No long-function extraction candidates found under "
+                    << path << ".\n";
+            return;
+        }
+
+        output_ << decisions.size() << " suggestion(s):\n";
+
+        for (const auto &decision : decisions)
+        {
+            output_ << "  [" << decision.file << "] " << decision.message << '\n';
+        }
+    }
+
+    void Repl::handle_license(const std::vector<std::string> &args) const
+    {
+        if (args.empty())
+        {
+            output_ << "Usage: license <header_file> [path] [--fix]\n";
+            return;
+        }
+
+        std::ifstream header_file(args[0]);
+
+        if (!header_file)
+        {
+            output_ << "Could not open header file: " << args[0] << '\n';
+            return;
+        }
+
+        std::ostringstream header_buffer;
+        header_buffer << header_file.rdbuf();
+
+        std::string path = ".";
+        bool fix = false;
+
+        for (size_type i = 1; i < args.size(); ++i)
+        {
+            if (args[i] == "--fix")
+            {
+                fix = true;
+            }
+            else
+            {
+                path = args[i];
+            }
+        }
+
+        LicenseHeaderChecker checker(header_buffer.str());
+        const auto missing = checker.find_missing(path);
+
+        if (missing.empty())
+        {
+            output_ << "Every source file under " << path << " already has the header.\n";
+            return;
+        }
+
+        if (!fix)
+        {
+            output_ << missing.size() << " file(s) missing the header:\n";
+
+            for (const auto &file : missing)
+            {
+                output_ << "  " << file << '\n';
+            }
+
+            output_ << "Re-run with --fix to prepend it automatically.\n";
+            return;
+        }
+
+        const auto fixed_count = checker.fix_all(path);
+        output_ << "Added the header to " << fixed_count << " file(s).\n";
+    }
+
+    void Repl::handle_build_info(const std::vector<std::string> &args) const
+    {
+        const std::string path = args.empty() ? "." : args.front();
+
+        BuildSystemDetector detector;
+        const auto system = detector.detect(path);
+
+        if (system == BuildSystem::Unknown)
+        {
+            output_ << "Could not identify a build system under " << path << ".\n";
+            return;
+        }
+
+        output_ << "Detected build system: " << build_system_name(system) << '\n'
+                << "Suggested build command: " << detector.build_command(system) << '\n';
+    }
+
+    void Repl::handle_export_embeddings(const std::vector<std::string> &args) const
+    {
+        if (!model_)
+        {
+            output_ << "Nothing to export yet. Run 'train <file>' first.\n";
+            return;
+        }
+
+        if (args.empty())
+        {
+            output_ << "Usage: export-embeddings <path.tsv>\n";
+            return;
+        }
+
+        models::EmbeddingExporter exporter;
+
+        try
+        {
+            exporter.export_tsv(model_->embedding(), vocabulary_, args.front());
+        }
+        catch (const Error &error)
+        {
+            output_ << "Export failed: " << error.what() << '\n';
+            return;
+        }
+
+        output_ << "Exported " << vocabulary_.size() << " embeddings to "
+                << args.front() << '\n';
+    }
+
     void Repl::handle_test(const std::vector<std::string> &args) const
     {
         const std::string build_directory = args.empty() ? "build" : args.front();
@@ -738,6 +977,22 @@ namespace cppai::cli
         else if (command == "test")
         {
             handle_test(args);
+        }
+        else if (command == "export-embeddings")
+        {
+            handle_export_embeddings(args);
+        }
+        else if (command == "license")
+        {
+            handle_license(args);
+        }
+        else if (command == "refactor")
+        {
+            handle_refactor(args);
+        }
+        else if (command == "build-info")
+        {
+            handle_build_info(args);
         }
         else if (command == "exit" || command == "quit")
         {
