@@ -100,10 +100,26 @@ namespace cppai::cli
         std::vector<std::pair<std::string, std::uint64_t>> result;
 
         std::uint64_t current_line = 1;
-        int depth = 0;
 
-        std::uint64_t top_level_start_line = 0;
-        std::string top_level_function_name;
+        // A stack rather than a single depth==0 check: a function's
+        // '{' is almost always nested inside at least one enclosing
+        // namespace block (and often a class), so restricting
+        // detection to the outermost brace level would (and
+        // previously did) miss virtually every function in
+        // idiomatically namespaced C++ code. Each open brace is
+        // pushed with whether it looks like a function signature and
+        // the line it opened on; namespace/class/control-flow braces
+        // still get pushed (to keep depth tracking correct) but are
+        // marked as non-functions via extract_function_name already
+        // filtering those keywords.
+        struct OpenScope
+        {
+            bool is_function;
+            std::uint64_t start_line;
+            std::string name;
+        };
+
+        std::vector<OpenScope> scopes;
 
         for (std::size_t i = 0; i < source_text.size(); ++i)
         {
@@ -117,29 +133,26 @@ namespace cppai::cli
 
             if (c == '{')
             {
-                if (depth == 0)
-                {
-                    top_level_start_line = current_line;
-                    top_level_function_name = extract_function_name(source_text, i);
-                }
-
-                ++depth;
+                std::string name = extract_function_name(source_text, i);
+                scopes.push_back(OpenScope{!name.empty(), current_line, std::move(name)});
             }
             else if (c == '}')
             {
-                if (depth > 0)
+                if (scopes.empty())
                 {
-                    --depth;
+                    continue;
+                }
 
-                    if (depth == 0 && !top_level_function_name.empty())
+                const OpenScope scope = std::move(scopes.back());
+                scopes.pop_back();
+
+                if (scope.is_function)
+                {
+                    const std::uint64_t line_count = current_line - scope.start_line + 1;
+
+                    if (line_count >= threshold_lines)
                     {
-                        const std::uint64_t line_count =
-                            current_line - top_level_start_line + 1;
-
-                        if (line_count >= threshold_lines)
-                        {
-                            result.emplace_back(top_level_function_name, line_count);
-                        }
+                        result.emplace_back(scope.name, line_count);
                     }
                 }
             }
